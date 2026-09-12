@@ -72,28 +72,84 @@ def seed_roles_and_admin() -> None:
             else:
                 print(f"Role already exists: {role_name}")
 
-        # Create admin user if it does not exist.
-        admin_user = db.scalar(
-            select(User).where(User.email == ADMIN_EMAIL)
-        )
+        # Create standard accounts for all roles
+        SEED_USERS = [
+            {
+                "email": "admin@labelguard.local",
+                "aliases": ["admin@labelguard.gov.in"],
+                "role_name": "admin",
+                "full_name": "National Administrator",
+                "passwords": ["Admin@LabelGuard2026", "demo"],
+            },
+            {
+                "email": "inspector@labelguard.gov.in",
+                "aliases": ["inspector@labelguard.local"],
+                "role_name": "inspector",
+                "full_name": "Field Inspector",
+                "passwords": ["Inspector@123", "demo"],
+            },
+            {
+                "email": "controller@labelguard.gov.in",
+                "aliases": ["district@labelguard.gov.in"],
+                "role_name": "district_collector",
+                "full_name": "District Controller",
+                "passwords": ["District@123", "demo"],
+            },
+            {
+                "email": "state@labelguard.gov.in",
+                "aliases": ["state_admin@labelguard.gov.in"],
+                "role_name": "state_admin",
+                "full_name": "State Administrator",
+                "passwords": ["State@123", "demo"],
+            },
+            {
+                "email": "national@labelguard.gov.in",
+                "aliases": ["national_admin@labelguard.gov.in"],
+                "role_name": "national_admin",
+                "full_name": "National Administrator",
+                "passwords": ["National@123", "demo"],
+            },
+            {
+                "email": "auditor@labelguard.gov.in",
+                "aliases": ["auditor@labelguard.local"],
+                "role_name": "auditor",
+                "full_name": "Compliance Auditor",
+                "passwords": ["Auditor@123", "demo"],
+            },
+        ]
 
-        if admin_user is None:
-            admin_user = User(
-                role_id=admin_role.id,
-                full_name="LABELGUARD Administrator",
-                email=ADMIN_EMAIL,
-                password_hash=hash_password(ADMIN_PASSWORD),
-                is_active=True,
-            )
-            db.add(admin_user)
-            print("Admin user created.")
-        else:
-            print("Admin user already exists.")
+        roles_by_name = {
+            r.name: r for r in db.scalars(select(Role)).all()
+        }
+
+        for user_data in SEED_USERS:
+            role = roles_by_name.get(user_data["role_name"])
+            if not role:
+                continue
+
+            all_emails = [user_data["email"]] + user_data.get("aliases", [])
+            for email in all_emails:
+                existing = db.scalar(select(User).where(User.email == email))
+                if existing is None:
+                    u = User(
+                        role_id=role.id,
+                        full_name=user_data["full_name"],
+                        email=email,
+                        password_hash=hash_password(user_data["passwords"][0]),
+                        is_active=True,
+                    )
+                    db.add(u)
+                    print(f"Created user: {email} ({user_data['role_name']})")
+                else:
+                    # Update password to standard password
+                    existing.password_hash = hash_password(user_data["passwords"][0])
+                    existing.role_id = role.id
+                    existing.is_active = True
+                    print(f"Updated user: {email} ({user_data['role_name']})")
 
         db.commit()
 
-        print("Roles and admin seed completed.")
-        print(f"Admin email: {ADMIN_EMAIL}")
+        print("Roles and user seed completed.")
 
     except Exception:
         db.rollback()
@@ -105,3 +161,4 @@ def seed_roles_and_admin() -> None:
 
 if __name__ == "__main__":
     seed_roles_and_admin()
+

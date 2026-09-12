@@ -13,6 +13,7 @@ from app.repositories.violation_repository import get_violations_for_inspection
 from app.schemas.bulk import BulkScanResponse
 from app.schemas.inspection import (
     InspectionCreate,
+    InspectionDetailResponse,
     InspectionResponse,
     OfficerDecisionRequest,
     OfficerDecisionResponse,
@@ -404,7 +405,7 @@ def get_inspections(
 
 @router.get(
     "/{inspection_id}",
-    response_model=InspectionResponse,
+    response_model=InspectionDetailResponse,
     dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_single_inspection(
@@ -432,6 +433,9 @@ def get_single_inspection(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You do not have access to this inspection",
         )
+
+    violations = get_violations_for_inspection(db, inspection.id)
+    setattr(inspection, "violations", violations)
 
     return inspection
 

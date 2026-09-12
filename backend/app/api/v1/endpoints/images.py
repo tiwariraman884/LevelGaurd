@@ -1,9 +1,12 @@
+from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user, require_roles
 from app.db.session import get_db
 from app.models.inspection import Inspection
+from app.models.inspection_image import InspectionImage
 from app.models.user import User
 from app.schemas.bulk import BulkImageUploadResponse
 from app.schemas.image import ImageResponse
@@ -154,3 +157,56 @@ def get_inspection_images(
         db=db,
         inspection_id=inspection_id,
     )
+
+
+@router.get(
+    "/{inspection_id}/images/{image_id}/file",
+    response_class=FileResponse,
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
+)
+def get_inspection_image_file(
+    inspection_id: int,
+    image_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Securely stream the physical inspection image file.
+    """
+    inspection = db.get(Inspection, inspection_id)
+    if inspection is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Inspection not found",
+        )
+
+    user_role = getattr(getattr(current_user, "role", None), "name", None)
+    if (
+        inspection.inspector_id != current_user.id
+        and user_role not in ("admin", "auditor")
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this inspection image",
+        )
+
+    image = db.get(InspectionImage, image_id)
+    if image is None or image.inspection_id != inspection_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image not found",
+        )
+
+    file_path = Path(image.file_path)
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image file not found on storage",
+        )
+
+    return FileResponse(
+        path=str(file_path),
+        media_type=image.mime_type or "image/jpeg",
+        filename=image.file_name,
+    )
+

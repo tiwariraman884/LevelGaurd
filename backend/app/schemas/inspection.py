@@ -65,3 +65,25 @@ class OfficerDecisionResponse(BaseModel):
     decided_at: datetime
     remarks: str | None = None
 
+
+from app.schemas.declaration import DeclarationResponse
+from app.schemas.escalation import EscalationResponse
+from app.schemas.image import ImageResponse
+from app.schemas.mrp import MRPFindingResponse
+from app.schemas.product import ProductResponse
+from app.schemas.violation import ViolationResponse
+
+
+class InspectionDetailResponse(InspectionResponse):
+    final_decision: str | None = None
+    final_decision_by: int | None = None
+    final_decision_at: datetime | None = None
+    officer_remarks: str | None = None
+    product: ProductResponse | None = None
+    images: list[ImageResponse] = []
+    declarations: list[DeclarationResponse] = []
+    violations: list[ViolationResponse] = []
+    mrp_findings: list[MRPFindingResponse] = []
+    escalation: EscalationResponse | None = None
+
+

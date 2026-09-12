@@ -8,8 +8,10 @@ from app.api.v1.endpoints import (
     images,
     inspections,
     manufacturer_references,
+    notifications,
     products,
     reports,
+    rules,
 )
 
 
@@ -52,4 +54,14 @@ api_router.include_router(
 api_router.include_router(
     escalations.router,
 )
+
+api_router.include_router(
+    notifications.router,
+)
+
+api_router.include_router(
+    rules.router,
+)
+
+
 

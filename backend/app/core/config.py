@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     debug: bool = True
 
     api_v1_prefix: str = "/api/v1"
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://10.14.148.83:3000"
 
     database_url: str
 
