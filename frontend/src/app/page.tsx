@@ -139,6 +139,7 @@ export default function Home() {
 
       {/* From Shelf to Prosecution: 4-Step Statutory Lifecycle Stepper */}
       <StatutoryLifecycleStepper />
+
       {/* Personas / User Hierarchy Grid (from Main Users PDF) */}
       <section className="w-full max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8 space-y-10">
         <div className="text-center space-y-2">

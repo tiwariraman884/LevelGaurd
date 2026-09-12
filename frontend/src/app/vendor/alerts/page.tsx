@@ -6,11 +6,7 @@ import { AlertTriangle, ShieldAlert, ArrowUpRight, Send, Check } from 'lucide-re
 import { ApiClient } from '@/lib/api-client';
 
 export default function VendorAlertsPage() {
-<<<<<<< HEAD
-  const inspections = ApiClient.getSampleInspections().filter((i) => i.status === 'NON_COMPLIANT');
-=======
   const inspections = ApiClient.getInspections().filter((i) => i.status === 'NON_COMPLIANT');
->>>>>>> origin/main
   const [selectedAlert, setSelectedAlert] = useState<string | null>(null);
   const [disputeReason, setDisputeReason] = useState('');
   const [disputeSubmitted, setDisputeSubmitted] = useState(false);

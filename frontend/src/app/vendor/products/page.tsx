@@ -2,19 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
-<<<<<<< HEAD
-import { PlusCircle, ArrowUpRight, CheckCircle2, AlertTriangle } from 'lucide-react';
-import { ApiClient } from '@/lib/api-client';
-
-export default function VendorProductsPage() {
-  const inspections = ApiClient.getSampleInspections();
-=======
 import { PlusCircle, FileCheck2, ArrowUpRight, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { ApiClient } from '@/lib/api-client';
 
 export default function VendorProductsPage() {
   const inspections = ApiClient.getInspections();
->>>>>>> origin/main
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">

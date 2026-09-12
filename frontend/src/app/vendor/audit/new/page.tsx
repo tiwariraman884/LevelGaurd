@@ -24,11 +24,6 @@ import {
   Eye,
   Crosshair,
   Clock,
-<<<<<<< HEAD
-} from 'lucide-react';
-import { ApiClient } from '@/lib/api-client';
-import { InspectionRecord, BoundingBox } from '@/lib/types';
-=======
   ZoomIn,
   ZoomOut,
   Ruler,
@@ -40,7 +35,6 @@ import { InspectionRecord, BoundingBox } from '@/lib/types';
 import { ApiClient } from '@/lib/api-client';
 import { InspectionRecord, BoundingBox } from '@/lib/types';
 import OfficialCertificateModal from '@/components/vendor/OfficialCertificateModal';
->>>>>>> origin/main
 
 export default function NewSelfAuditPage() {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
@@ -66,12 +60,9 @@ export default function NewSelfAuditPage() {
   const [result, setResult] = useState<InspectionRecord | null>(null);
   const [selectedBbox, setSelectedBbox] = useState<BoundingBox | null>(null);
   const [expandedRule, setExpandedRule] = useState<string | null>(null);
-<<<<<<< HEAD
-=======
   const [isCertModalOpen, setIsCertModalOpen] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
   const [copiedHash, setCopiedHash] = useState(false);
->>>>>>> origin/main
 
   // Handle Preset Quick Selection
   const applyPreset = (type: 'compliant' | 'font_defect' | 'tampered_mrp') => {
@@ -82,33 +73,21 @@ export default function NewSelfAuditPage() {
       setSku('NR-DIG-500G');
       setDeclaredMrp(145);
       setNetQuantity('500 g');
-<<<<<<< HEAD
-      setPreviewUrl('https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=800&q=80');
-=======
       setPreviewUrl('/samples/biscuits.jpg');
->>>>>>> origin/main
     } else if (type === 'font_defect') {
       setProductName('GlowHerb Ayurvedic Hair Oil');
       setBrand('GlowHerb Natural Care');
       setSku('GH-AHO-100ML');
       setDeclaredMrp(180);
       setNetQuantity('100 ml');
-<<<<<<< HEAD
-      setPreviewUrl('https://images.unsplash.com/photo-1608248597359-007e050044fa?auto=format&fit=crop&w=800&q=80');
-=======
       setPreviewUrl('/samples/hairoil.jpg');
->>>>>>> origin/main
     } else {
       setProductName('CrispWave Kettle Cooked Chips');
       setBrand('CrispWave Snacks Ltd');
       setSku('CW-KC-75G');
       setDeclaredMrp(50);
       setNetQuantity('75 g');
-<<<<<<< HEAD
-      setPreviewUrl('https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=800&q=80');
-=======
       setPreviewUrl('/samples/chips.jpg');
->>>>>>> origin/main
     }
   };
 
@@ -522,19 +501,6 @@ export default function NewSelfAuditPage() {
             {/* Top Quick Actions */}
             <div className="flex flex-wrap items-center gap-2">
               {result.status === 'COMPLIANT' ? (
-<<<<<<< HEAD
-                <Link
-                  href="/vendor/dashboard"
-                  className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition"
-                >
-                  <ShieldCheck className="w-4 h-4" />
-                  <span>View Official Certificate</span>
-                </Link>
-              ) : (
-                <button
-                  onClick={() => setStep(2)}
-                  className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition"
-=======
                 <button
                   onClick={() => setIsCertModalOpen(true)}
                   className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
@@ -546,7 +512,6 @@ export default function NewSelfAuditPage() {
                 <button
                   onClick={() => setStep(2)}
                   className="px-4 py-2 bg-rose-700 hover:bg-rose-800 text-white font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow-xs transition cursor-pointer"
->>>>>>> origin/main
                 >
                   <RotateCcw className="w-4 h-4" />
                   <span>Fix & Resubmit Artwork</span>
@@ -554,13 +519,8 @@ export default function NewSelfAuditPage() {
               )}
 
               <button
-<<<<<<< HEAD
-                onClick={() => alert(`Enforcement-grade PDF report generated deterministically in 340ms.`)}
-                className="px-3 py-2 bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow-2xs transition"
-=======
                 onClick={() => window.print()}
                 className="px-3 py-2 bg-white hover:bg-zinc-100 text-zinc-800 border border-zinc-300 font-semibold rounded-lg text-xs flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
->>>>>>> origin/main
               >
                 <Download className="w-3.5 h-3.5 text-zinc-600" />
                 <span>Download Legal Report (PDF)</span>
@@ -570,28 +530,13 @@ export default function NewSelfAuditPage() {
 
           {/* Hero Two-Panel Layout */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-<<<<<<< HEAD
-            {/* Left Panel: Annotated Packaging Canvas with Interactive Bounding Boxes */}
-=======
             {/* Left Panel: Annotated Packaging Canvas with Interactive Bounding Boxes & Zoom */}
->>>>>>> origin/main
             <div className="lg:col-span-6 bg-white border border-zinc-200 rounded-xl p-5 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-zinc-200 pb-3">
                 <div className="flex items-center gap-2">
                   <Crosshair className="w-4 h-4 text-emerald-600" />
                   <h2 className="text-sm font-bold text-zinc-900">Visual Packaging Evidence Canvas</h2>
                 </div>
-<<<<<<< HEAD
-                <span className="text-[11px] text-zinc-500">Interactive Bounding Boxes</span>
-              </div>
-
-              {/* Interactive Canvas Container */}
-              <div className="relative rounded-lg overflow-hidden border border-zinc-300 bg-zinc-900 group">
-                <img
-                  src={result.imageUrl}
-                  alt={result.productName}
-                  className="w-full h-[280px] sm:h-[420px] object-cover opacity-90 group-hover:opacity-95 transition"
-=======
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -618,7 +563,6 @@ export default function NewSelfAuditPage() {
                     isZoomed ? 'scale-125 cursor-zoom-out' : 'scale-100'
                   }`}
                   onClick={() => setIsZoomed(!isZoomed)}
->>>>>>> origin/main
                 />
 
                 {/* Overlaid Bounding Boxes from Declarations */}
@@ -630,12 +574,8 @@ export default function NewSelfAuditPage() {
                     return (
                       <div
                         key={idx}
-<<<<<<< HEAD
-                        onClick={() => {
-=======
                         onClick={(e) => {
                           e.stopPropagation();
->>>>>>> origin/main
                           setSelectedBbox(b);
                           setExpandedRule(decl.ruleCode);
                         }}
@@ -648,17 +588,10 @@ export default function NewSelfAuditPage() {
                         className={`absolute border-2 cursor-pointer transition-all duration-150 flex items-start justify-start p-1 ${
                           b.status === 'pass'
                             ? isSelected
-<<<<<<< HEAD
-                              ? 'border-emerald-400 bg-emerald-500/30 ring-2 ring-emerald-300'
-                              : 'border-emerald-500 bg-emerald-500/15 hover:bg-emerald-500/25'
-                            : isSelected
-                            ? 'border-rose-400 bg-rose-500/40 ring-2 ring-rose-300'
-=======
                               ? 'border-emerald-400 bg-emerald-500/30 ring-2 ring-emerald-300 scale-105 z-10'
                               : 'border-emerald-500 bg-emerald-500/15 hover:bg-emerald-500/30'
                             : isSelected
                             ? 'border-rose-400 bg-rose-500/40 ring-2 ring-rose-300 scale-105 z-10'
->>>>>>> origin/main
                             : 'border-rose-500 bg-rose-500/20 hover:bg-rose-500/35'
                         }`}
                       >
@@ -686,11 +619,6 @@ export default function NewSelfAuditPage() {
                     <span className="font-medium text-rose-900">Violation / Tamper</span>
                   </div>
                 </div>
-<<<<<<< HEAD
-                <span className="text-[11px] text-zinc-500 italic">Click any box to inspect</span>
-              </div>
-
-=======
                 <span className="text-[11px] text-zinc-500 italic">Click any box or row to focus</span>
               </div>
 
@@ -733,7 +661,6 @@ export default function NewSelfAuditPage() {
                 </div>
               )}
 
->>>>>>> origin/main
               {/* Tamper Alert Callout if present */}
               {result.tamperDetected && (
                 <div className="p-3 bg-rose-100/70 border border-rose-300 rounded-lg text-xs text-rose-900 space-y-1">
@@ -807,40 +734,6 @@ export default function NewSelfAuditPage() {
                     Extracted Mandatory Packaging Declarations
                   </p>
                   <div className="divide-y divide-zinc-200 border border-zinc-200 rounded-lg overflow-hidden text-xs">
-<<<<<<< HEAD
-                    {result.declarations.map((decl, idx) => (
-                      <div
-                        key={idx}
-                        className={`p-3 transition flex items-start justify-between gap-3 ${
-                          decl.status === 'not_found'
-                            ? 'bg-rose-50/70'
-                            : selectedBbox?.field_name === decl.fieldName
-                            ? 'bg-emerald-50/80'
-                            : 'bg-white hover:bg-zinc-50'
-                        }`}
-                      >
-                        <div className="space-y-0.5">
-                          <div className="flex items-center gap-1.5 font-semibold text-zinc-900">
-                            {decl.status === 'extracted' ? (
-                              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                            ) : (
-                              <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                            )}
-                            <span>{decl.label}</span>
-                            <span className="text-[10px] font-mono text-zinc-400">({decl.ruleCode})</span>
-                          </div>
-                          <p className="font-mono text-xs text-zinc-700 pl-5">
-                            {decl.value || <span className="text-rose-600 font-bold">MISSING / NOT FOUND</span>}
-                          </p>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <span className="font-mono text-[10px] text-zinc-500">
-                            Conf: {decl.confidence ? `${decl.confidence}%` : 'N/A'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-=======
                     {result.declarations.map((decl, idx) => {
                       const isSelected = selectedBbox?.label === decl.bbox?.label;
                       return (
@@ -880,16 +773,11 @@ export default function NewSelfAuditPage() {
                         </div>
                       );
                     })}
->>>>>>> origin/main
                   </div>
                 </div>
               </div>
 
-<<<<<<< HEAD
-              {/* Fix & Resubmit Workflow Guide (code-2.sql) */}
-=======
               {/* Fix & Resubmit Workflow Guide */}
->>>>>>> origin/main
               <div className="bg-zinc-900 text-zinc-200 p-5 rounded-xl text-xs space-y-2 shadow-xs">
                 <p className="font-bold text-emerald-400 uppercase tracking-wider text-[10px]">
                   Continuous Compliance Loop
@@ -900,11 +788,7 @@ export default function NewSelfAuditPage() {
                 <div className="pt-1 flex gap-2">
                   <button
                     onClick={() => setStep(2)}
-<<<<<<< HEAD
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-[11px] transition"
-=======
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded text-[11px] transition cursor-pointer"
->>>>>>> origin/main
                   >
                     Resubmit Revised Artwork
                   </button>
@@ -918,8 +802,6 @@ export default function NewSelfAuditPage() {
               </div>
             </div>
           </div>
-<<<<<<< HEAD
-=======
 
           {/* Deep Statutory Diagnostics Suite (3 Rich Cards) */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -1040,7 +922,6 @@ export default function NewSelfAuditPage() {
             onClose={() => setIsCertModalOpen(false)}
             record={result}
           />
->>>>>>> origin/main
         </div>
       )}
     </div>

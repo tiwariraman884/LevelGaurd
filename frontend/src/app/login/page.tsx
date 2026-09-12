@@ -46,11 +46,9 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotSent, setForgotSent] = useState(false);
 
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
   useEffect(() => {
     if (isAuthenticated && user) {
-      router.push(getDefaultRoute(user.backendRole || user.role));
+      router.push(getDefaultRoute(user.role));
     }
   }, [isAuthenticated, user, router]);
 
@@ -58,30 +56,10 @@ export default function LoginPage() {
     e.preventDefault();
     if (!email || !password) return;
     setIsLoading(true);
-    setErrorMsg(null);
     try {
-      const loggedUser = await login(email, password, selectedRole);
-      router.push(getDefaultRoute(loggedUser?.backendRole || loggedUser?.role || selectedRole));
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Authentication failed. Please check your credentials.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async (quickEmail: string, quickPass: string, role: UserRole) => {
-    setIsLoading(true);
-    setErrorMsg(null);
-    setEmail(quickEmail);
-    setPassword(quickPass);
-    setSelectedRole(role);
-    try {
-      const loggedUser = await login(quickEmail, quickPass, role);
-      router.push(getDefaultRoute(loggedUser?.backendRole || loggedUser?.role || role));
+      await login(email, password, selectedRole);
+      router.push(getDefaultRoute(selectedRole));
     } catch {
-      // Fallback
-      router.push(getDefaultRoute(role));
-    } finally {
       setIsLoading(false);
     }
   };
@@ -206,57 +184,36 @@ export default function LoginPage() {
               <div className="grid grid-cols-2 gap-2 pt-1">
                 <button
                   type="button"
-                  disabled={isLoading}
-                  onClick={() => handleQuickLogin('vendor@labelguard.gov.in', 'Vendor@123', 'vendor')}
-                  className="px-2.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1 transition text-left truncate disabled:opacity-50"
+                  onClick={() => {
+                    login('vendor@labelguard.gov.in', 'demo', 'vendor');
+                    router.push('/vendor/audit/new');
+                  }}
+                  className="px-2.5 py-2 bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1 transition text-left truncate"
                 >
                   🟢 Vendor Audit
                 </button>
                 <button
                   type="button"
-                  disabled={isLoading}
-                  onClick={() => handleQuickLogin('inspector@labelguard.gov.in', 'Inspector@123', 'inspector')}
-                  className="px-2.5 py-2 bg-white hover:bg-blue-100 text-blue-900 border border-blue-300 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1 transition text-left truncate disabled:opacity-50"
+                  onClick={() => {
+                    login('inspector@labelguard.gov.in', 'demo', 'inspector');
+                    router.push('/inspector/scans');
+                  }}
+                  className="px-2.5 py-2 bg-white hover:bg-blue-100 text-blue-900 border border-blue-300 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1 transition text-left truncate"
                 >
                   🔵 Field Inspector
                 </button>
                 <button
                   type="button"
-                  disabled={isLoading}
-                  onClick={() => handleQuickLogin('controller@labelguard.gov.in', 'District@123', 'controller')}
-                  className="px-2.5 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1 transition text-left truncate disabled:opacity-50"
+                  onClick={() => {
+                    login('controller@labelguard.gov.in', 'demo', 'controller');
+                    router.push('/dashboard/district');
+                  }}
+                  className="px-2.5 py-2 bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1 transition text-left truncate"
                 >
                   🟡 Controller Hub
                 </button>
                 <button
                   type="button"
-                  disabled={isLoading}
-                  onClick={() => handleQuickLogin('admin@labelguard.gov.in', 'Admin@LabelGuard2026', 'admin')}
-                  className="px-2.5 py-2 bg-white hover:bg-purple-100 text-purple-900 border border-purple-300 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1 transition text-left truncate disabled:opacity-50"
-                >
-                  🟣 National Admin
-                </button>
-                <button
-                  type="button"
-                  disabled={isLoading}
-                  onClick={() => handleQuickLogin('auditor@labelguard.gov.in', 'Auditor@123', 'auditor')}
-                  className="px-2.5 py-2 bg-white hover:bg-zinc-100 text-zinc-900 border border-zinc-300 rounded-lg text-xs font-semibold shadow-xs flex items-center justify-center gap-1 transition text-left truncate disabled:opacity-50 col-span-2"
-                >
-                  ⚪ Auditor / Observer Dossier
-                </button>
-              </div>
-            </div>
-
-            {/* Error message banner */}
-            {errorMsg && (
-              <div className="mb-5 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs font-medium flex items-center gap-2">
-                <span>⚠️</span>
-                <span>{errorMsg}</span>
-              </div>
-            )}
-
-
-=======
                   onClick={() => {
                     login('admin@labelguard.gov.in', 'demo', 'admin');
                     router.push('/dashboard/admin');
@@ -268,7 +225,6 @@ export default function LoginPage() {
               </div>
             </div>
 
->>>>>>> origin/main
             {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
               {/* Role Dropdown */}

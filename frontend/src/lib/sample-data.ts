@@ -143,11 +143,7 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
     status: 'COMPLIANT',
     complianceScore: 100,
     createdAt: '2026-09-09T14:30:00Z',
-<<<<<<< HEAD
-    imageUrl: 'https://images.unsplash.com/photo-1590080875515-8a3a8dc5735e?auto=format&fit=crop&w=800&q=80',
-=======
     imageUrl: '/samples/biscuits.jpg',
->>>>>>> origin/main
     tamperDetected: false,
     scanSource: 'vendor_self_audit',
     declarations: [
@@ -159,11 +155,7 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
         confidence: 98.4,
         status: 'extracted',
         ruleCode: 'LG-MRP',
-<<<<<<< HEAD
-        bbox: { ymin: 22, xmin: 58, ymax: 34, xmax: 92, label: 'MRP & USP', status: 'pass', field_name: 'mrp' },
-=======
         bbox: { ymin: 76, xmin: 57, ymax: 84, xmax: 92, label: 'MRP & USP', status: 'pass', field_name: 'mrp' },
->>>>>>> origin/main
       },
       {
         fieldName: 'net_quantity',
@@ -173,19 +165,6 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
         confidence: 99.1,
         status: 'extracted',
         ruleCode: 'LG-QTY',
-<<<<<<< HEAD
-        bbox: { ymin: 36, xmin: 58, ymax: 45, xmax: 85, label: 'Net Qty', status: 'pass', field_name: 'net_quantity' },
-      },
-      {
-        fieldName: 'manufacturing_date',
-        label: 'Mfg Month & Year',
-        value: '08/2026',
-        rawValue: 'MFD. 08/2026 - USE BY 02/2027',
-        confidence: 96.7,
-        status: 'extracted',
-        ruleCode: 'LG-DATE',
-        bbox: { ymin: 47, xmin: 58, ymax: 56, xmax: 94, label: 'Mfg Date', status: 'pass', field_name: 'manufacturing_date' },
-=======
         bbox: { ymin: 76, xmin: 33, ymax: 84, xmax: 55, label: 'Net Qty', status: 'pass', field_name: 'net_quantity' },
       },
       {
@@ -207,7 +186,6 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
         status: 'extracted',
         ruleCode: 'LG-BBE',
         bbox: { ymin: 70, xmin: 64, ymax: 77, xmax: 73, label: 'Veg Logo', status: 'pass', field_name: 'veg_emblem' },
->>>>>>> origin/main
       },
       {
         fieldName: 'manufacturer',
@@ -217,11 +195,7 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
         confidence: 97.2,
         status: 'extracted',
         ruleCode: 'LG-MFR',
-<<<<<<< HEAD
-        bbox: { ymin: 58, xmin: 10, ymax: 76, xmax: 92, label: 'Manufacturer Name & Address', status: 'pass', field_name: 'manufacturer' },
-=======
         bbox: { ymin: 44, xmin: 33, ymax: 56, xmax: 70, label: 'Manufacturer Name & Address', status: 'pass', field_name: 'manufacturer' },
->>>>>>> origin/main
       },
       {
         fieldName: 'consumer_care',
@@ -231,11 +205,7 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
         confidence: 95.8,
         status: 'extracted',
         ruleCode: 'LG-CARE',
-<<<<<<< HEAD
-        bbox: { ymin: 78, xmin: 10, ymax: 92, xmax: 92, label: 'Consumer Care Cell', status: 'pass', field_name: 'consumer_care' },
-=======
         bbox: { ymin: 84, xmin: 33, ymax: 92, xmax: 70, label: 'Consumer Care Cell', status: 'pass', field_name: 'consumer_care' },
->>>>>>> origin/main
       },
     ],
     violations: [],
@@ -256,11 +226,7 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
     status: 'NON_COMPLIANT',
     complianceScore: 68,
     createdAt: '2026-09-08T11:15:00Z',
-<<<<<<< HEAD
-    imageUrl: 'https://images.unsplash.com/photo-1608248597359-007e050044fa?auto=format&fit=crop&w=800&q=80',
-=======
     imageUrl: '/samples/hairoil.jpg',
->>>>>>> origin/main
     tamperDetected: false,
     scanSource: 'field_inspector',
     declarations: [
@@ -329,11 +295,7 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
     status: 'NON_COMPLIANT',
     complianceScore: 42,
     createdAt: '2026-09-09T09:40:00Z',
-<<<<<<< HEAD
-    imageUrl: 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?auto=format&fit=crop&w=800&q=80',
-=======
     imageUrl: '/samples/chips.jpg',
->>>>>>> origin/main
     tamperDetected: true,
     tamperReason: 'Overlaid adhesive sticker detected over original printed MRP. Underneath MRP: ₹35.00, Sticker MRP: ₹50.00.',
     noticeStatus: 'draft',
@@ -348,11 +310,7 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
         confidence: 97.8,
         status: 'review',
         ruleCode: 'LG-MRP',
-<<<<<<< HEAD
-        bbox: { ymin: 20, xmin: 52, ymax: 38, xmax: 95, label: 'Dual-MRP Sticker Seam Detected', status: 'fail', field_name: 'mrp' },
-=======
         bbox: { ymin: 15, xmin: 54, ymax: 33, xmax: 82, label: 'Dual-MRP Sticker Seam Detected', status: 'fail', field_name: 'mrp' },
->>>>>>> origin/main
       },
       {
         fieldName: 'consumer_care',
@@ -412,11 +370,7 @@ export const SAMPLE_INSPECTIONS: InspectionRecord[] = [
     status: 'NON_COMPLIANT',
     complianceScore: 54,
     createdAt: '2026-09-07T16:20:00Z',
-<<<<<<< HEAD
-    imageUrl: 'https://images.unsplash.com/photo-1587049352846-4a222e784d38?auto=format&fit=crop&w=800&q=80',
-=======
     imageUrl: '/samples/honey.jpg',
->>>>>>> origin/main
     tamperDetected: false,
     scanSource: 'ecomm_listing',
     declarations: [
