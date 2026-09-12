@@ -307,5 +307,3 @@ export interface BulkScanResult {
   violations: BackendViolation[];
   escalation?: BackendEscalation | null;
 }
-
-

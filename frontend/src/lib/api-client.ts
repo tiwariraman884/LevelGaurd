@@ -14,6 +14,7 @@ import {
   RepeatOffender,
   Section36Notice,
   SeverityLevel,
+  UserRole,
   ViolationItem,
 } from './types';
 import {
@@ -36,6 +37,7 @@ export const getApiBase = (): string => {
   return 'http://localhost:8000/api/v1';
 };
 
+<<<<<<< HEAD
 const TOKEN_STORAGE_KEY = 'labelguard_access_token';
 
 export function getStoredToken(): string | null {
@@ -240,10 +242,24 @@ export class ApiClient {
       const res = await fetch(`${apiBase}/health`, { method: 'GET', signal: AbortSignal.timeout(2000) });
       return res.ok;
     } catch {
+=======
+export class ApiClient {
+  private static isBackendAvailable: boolean | null = null;
+
+  static async checkBackend(): Promise<boolean> {
+    try {
+      const apiBase = getApiBase();
+      const res = await fetch(`${apiBase}/health`, { method: 'GET', signal: AbortSignal.timeout(1500) });
+      this.isBackendAvailable = res.ok;
+      return res.ok;
+    } catch {
+      this.isBackendAvailable = false;
+>>>>>>> origin/main
       return false;
     }
   }
 
+<<<<<<< HEAD
   // Auth
   static async login(email: string, password: string): Promise<{ access_token: string; token_type: string }> {
     const data = await apiFetch<{ access_token: string; token_type: string }>('/auth/login', {
@@ -449,6 +465,20 @@ export class ApiClient {
   }
 
   // Legacy / Sample helpers
+=======
+  static getInspections(): InspectionRecord[] {
+    return SAMPLE_INSPECTIONS;
+  }
+
+  static getInspectionById(id: string | number): InspectionRecord | undefined {
+    return SAMPLE_INSPECTIONS.find((item) => String(item.id) === String(id)) || SAMPLE_INSPECTIONS[0];
+  }
+
+  static getRules(): CodifiedRule[] {
+    return SAMPLE_RULES;
+  }
+
+>>>>>>> origin/main
   static getNotices(): Section36Notice[] {
     return SAMPLE_NOTICES;
   }
@@ -457,7 +487,7 @@ export class ApiClient {
     return SAMPLE_REPEAT_OFFENDERS;
   }
 
-  static getCertificate(): ComplianceCertificate {
+  static getCertificate(sku?: string): ComplianceCertificate {
     return SAMPLE_CERTIFICATE;
   }
 
@@ -484,6 +514,7 @@ export class ApiClient {
   }): Promise<InspectionRecord> {
     return new Promise((resolve) => {
       setTimeout(() => {
+        // If name has "biscuit" or "digestive", return compliant sample
         if (payload.productName.toLowerCase().includes('biscuit') || payload.productName.toLowerCase().includes('digestive')) {
           resolve({
             ...SAMPLE_INSPECTIONS[0],
@@ -493,6 +524,7 @@ export class ApiClient {
             declaredMrp: payload.declaredMrp || 145,
           });
         } else if (payload.productName.toLowerCase().includes('chip') || payload.productName.toLowerCase().includes('tamper')) {
+          // Return tampered MRP sample
           resolve({
             ...SAMPLE_INSPECTIONS[2],
             productName: payload.productName,
@@ -501,6 +533,7 @@ export class ApiClient {
             declaredMrp: payload.declaredMrp || 50,
           });
         } else {
+          // Return font height violation sample
           resolve({
             ...SAMPLE_INSPECTIONS[1],
             productName: payload.productName,
@@ -513,4 +546,3 @@ export class ApiClient {
     });
   }
 }
-

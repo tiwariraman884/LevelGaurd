@@ -1,8 +1,13 @@
 'use client';
 
+<<<<<<< HEAD
 import React, { useState, useRef, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+=======
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+>>>>>>> origin/main
 import {
   Camera,
   X,
@@ -14,6 +19,7 @@ import {
   CheckCircle,
   AlertCircle,
   Crosshair,
+<<<<<<< HEAD
   Loader2,
   ImageIcon,
 } from 'lucide-react';
@@ -26,17 +32,31 @@ function CameraContent() {
   const searchParams = useSearchParams();
   const initialInspectionId = searchParams.get('inspectionId');
 
+=======
+  Maximize2,
+  Loader2,
+  ImageIcon,
+} from 'lucide-react';
+
+type CameraState = 'requesting' | 'active' | 'denied' | 'captured' | 'uploading' | 'error';
+
+export default function InspectorCameraPage() {
+>>>>>>> origin/main
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const [cameraState, setCameraState] = useState<CameraState>('requesting');
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
+<<<<<<< HEAD
   const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+=======
+>>>>>>> origin/main
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
   const [errorMessage, setErrorMessage] = useState('');
+<<<<<<< HEAD
   const [uploadStatusText, setUploadStatusText] = useState('Sending to Server...');
   const [imageType, setImageType] = useState<string>('front');
   const isMountedRef = React.useRef(true);
@@ -57,6 +77,16 @@ function CameraContent() {
     // Stop any existing stream
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
+=======
+
+  const startCamera = useCallback(async () => {
+    setCameraState('requesting');
+    setCapturedImage(null);
+
+    // Stop any existing stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+>>>>>>> origin/main
       streamRef.current = null;
     }
 
@@ -71,15 +101,19 @@ function CameraContent() {
         audio: false,
       });
 
+<<<<<<< HEAD
       if (!isMountedRef.current) {
         stream.getTracks().forEach((track) => track.stop());
         return;
       }
 
+=======
+>>>>>>> origin/main
       streamRef.current = stream;
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+<<<<<<< HEAD
         try {
           await videoRef.current.play();
         } catch (playErr: unknown) {
@@ -89,6 +123,9 @@ function CameraContent() {
           }
           console.warn('Video play interrupted:', playErr);
         }
+=======
+        await videoRef.current.play();
+>>>>>>> origin/main
       }
 
       // Check if torch/flashlight is supported
@@ -100,6 +137,7 @@ function CameraContent() {
         setTorchSupported(false);
       }
 
+<<<<<<< HEAD
       if (isMountedRef.current) {
         setCameraState('active');
       }
@@ -115,6 +153,15 @@ function CameraContent() {
         if (err.name === 'NotAllowedError') {
           setCameraState('denied');
           setErrorMessage('Camera access was denied. Please grant camera permission or use the photo button.');
+=======
+      setCameraState('active');
+    } catch (err: unknown) {
+      console.error('Camera access error:', err);
+      if (err instanceof DOMException) {
+        if (err.name === 'NotAllowedError') {
+          setCameraState('denied');
+          setErrorMessage('Camera access was denied. Please grant camera permission in your browser settings and reload.');
+>>>>>>> origin/main
         } else if (err.name === 'NotFoundError') {
           setCameraState('error');
           setErrorMessage('No camera found on this device.');
@@ -137,7 +184,11 @@ function CameraContent() {
 
     return () => {
       if (streamRef.current) {
+<<<<<<< HEAD
         streamRef.current.getTracks().forEach((track) => track.stop());
+=======
+        streamRef.current.getTracks().forEach(track => track.stop());
+>>>>>>> origin/main
       }
     };
   }, [startCamera]);
@@ -156,7 +207,11 @@ function CameraContent() {
   };
 
   const switchCamera = () => {
+<<<<<<< HEAD
     setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'));
+=======
+    setFacingMode(prev => (prev === 'environment' ? 'user' : 'environment'));
+>>>>>>> origin/main
   };
 
   const capturePhoto = () => {
@@ -164,8 +219,13 @@ function CameraContent() {
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
+<<<<<<< HEAD
     canvas.width = video.videoWidth || 1280;
     canvas.height = video.videoHeight || 960;
+=======
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+>>>>>>> origin/main
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -173,6 +233,7 @@ function CameraContent() {
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedImage(dataUrl);
+<<<<<<< HEAD
 
     canvas.toBlob(
       (blob) => {
@@ -182,25 +243,37 @@ function CameraContent() {
       0.92
     );
 
+=======
+>>>>>>> origin/main
     setCameraState('captured');
 
     // Stop the camera stream after capture
     if (streamRef.current) {
+<<<<<<< HEAD
       streamRef.current.getTracks().forEach((track) => track.stop());
+=======
+      streamRef.current.getTracks().forEach(track => track.stop());
+>>>>>>> origin/main
       streamRef.current = null;
     }
   };
 
   const retake = () => {
     setCapturedImage(null);
+<<<<<<< HEAD
     setCapturedBlob(null);
+=======
+>>>>>>> origin/main
     startCamera();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+<<<<<<< HEAD
       setCapturedBlob(file);
+=======
+>>>>>>> origin/main
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -212,6 +285,7 @@ function CameraContent() {
     }
   };
 
+<<<<<<< HEAD
   const handleUpload = async () => {
     if (!capturedImage && !capturedBlob) return;
 
@@ -263,6 +337,18 @@ function CameraContent() {
       }
       setErrorMessage(msg);
     }
+=======
+  const handleUpload = () => {
+    setCameraState('uploading');
+    // Backend team will implement the actual upload logic here
+    // For now, simulate a brief uploading state then show success
+    setTimeout(() => {
+      // This is where the backend API call would go
+      // e.g., await fetch('/api/inspector/scan', { method: 'POST', body: formData })
+      setCameraState('captured');
+      alert('📸 Photo captured successfully! The scanning analysis will be processed by the backend.');
+    }, 1500);
+>>>>>>> origin/main
   };
 
   return (
@@ -282,7 +368,11 @@ function CameraContent() {
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           <span className="text-white text-xs font-bold tracking-widest uppercase">
+<<<<<<< HEAD
             {initialInspectionId ? `Inspection #${initialInspectionId}` : 'Inspector Scanner'}
+=======
+            Inspector Scanner
+>>>>>>> origin/main
           </span>
         </div>
 
@@ -311,14 +401,24 @@ function CameraContent() {
               <Camera className="w-10 h-10" />
             </div>
             <div className="text-center space-y-2 px-8">
+<<<<<<< HEAD
               <p className="text-lg font-bold">Camera Access</p>
               <p className="text-sm text-zinc-400 leading-relaxed">
                 Opening camera feed to capture product packaging declarations...
+=======
+              <p className="text-lg font-bold">Camera Access Required</p>
+              <p className="text-sm text-zinc-400 leading-relaxed">
+                Please allow camera access to scan product packaging for compliance inspection.
+>>>>>>> origin/main
               </p>
             </div>
             <div className="flex items-center gap-2 mt-2">
               <Loader2 className="w-4 h-4 text-emerald-400 animate-spin" />
+<<<<<<< HEAD
               <span className="text-xs text-zinc-500">Starting video feed...</span>
+=======
+              <span className="text-xs text-zinc-500">Waiting for permission...</span>
+>>>>>>> origin/main
             </div>
           </div>
         )}
@@ -332,7 +432,11 @@ function CameraContent() {
             <div className="space-y-2 max-w-sm">
               <p className="text-xl font-bold">Snap Photo with Camera</p>
               <p className="text-xs text-zinc-400 leading-relaxed">
+<<<<<<< HEAD
                 {errorMessage || 'Tap below to capture packaging directly using your mobile phone camera.'}
+=======
+                Live browser video stream requires HTTPS. Over local Wi-Fi HTTP, tap below to open your phone&apos;s camera directly!
+>>>>>>> origin/main
               </p>
             </div>
 
@@ -378,9 +482,19 @@ function CameraContent() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="relative w-[75%] max-w-[320px] aspect-[3/4]">
                     {/* Corner brackets */}
+<<<<<<< HEAD
                     <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-emerald-400 rounded-tl-lg" />
                     <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-emerald-400 rounded-tr-lg" />
                     <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-emerald-400 rounded-bl-lg" />
+=======
+                    {/* Top-left */}
+                    <div className="absolute top-0 left-0 w-8 h-8 border-t-[3px] border-l-[3px] border-emerald-400 rounded-tl-lg" />
+                    {/* Top-right */}
+                    <div className="absolute top-0 right-0 w-8 h-8 border-t-[3px] border-r-[3px] border-emerald-400 rounded-tr-lg" />
+                    {/* Bottom-left */}
+                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-[3px] border-l-[3px] border-emerald-400 rounded-bl-lg" />
+                    {/* Bottom-right */}
+>>>>>>> origin/main
                     <div className="absolute bottom-0 right-0 w-8 h-8 border-b-[3px] border-r-[3px] border-emerald-400 rounded-br-lg" />
 
                     {/* Scanning line animation */}
@@ -394,7 +508,11 @@ function CameraContent() {
                     {/* Instruction text */}
                     <div className="absolute -bottom-10 left-0 right-0 text-center">
                       <p className="text-white/80 text-xs font-medium tracking-wide bg-black/50 backdrop-blur-sm rounded-full px-4 py-1.5 inline-block">
+<<<<<<< HEAD
                         Align mandatory declaration panel inside frame
+=======
+                        Align product label within frame
+>>>>>>> origin/main
                       </p>
                     </div>
                   </div>
@@ -406,12 +524,17 @@ function CameraContent() {
 
         {/* Captured Image Preview */}
         {cameraState === 'captured' && capturedImage && (
+<<<<<<< HEAD
           <div className="absolute inset-0 bg-black flex flex-col items-center justify-center">
+=======
+          <div className="absolute inset-0 bg-black">
+>>>>>>> origin/main
             <img
               src={capturedImage}
               alt="Captured packaging"
               className="w-full h-full object-contain"
             />
+<<<<<<< HEAD
 
             {/* Top Success badge */}
             <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-emerald-500/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg">
@@ -430,10 +553,22 @@ function CameraContent() {
         )}
 
         {/* Uploading & Processing State */}
+=======
+            {/* Success badge */}
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-emerald-500/90 backdrop-blur-md text-white px-4 py-2 rounded-full shadow-lg">
+              <CheckCircle className="w-4 h-4" />
+              <span className="text-xs font-bold tracking-wide">Photo Captured</span>
+            </div>
+          </div>
+        )}
+
+        {/* Uploading State */}
+>>>>>>> origin/main
         {cameraState === 'uploading' && capturedImage && (
           <div className="absolute inset-0 bg-black">
             <img
               src={capturedImage}
+<<<<<<< HEAD
               alt="Processing..."
               className="w-full h-full object-contain opacity-40 blur-xs"
             />
@@ -443,12 +578,22 @@ function CameraContent() {
                 <p className="text-white text-base font-bold">{uploadStatusText}</p>
                 <p className="text-zinc-400 text-xs">Communicating with Legal Metrology Compliance Engine...</p>
               </div>
+=======
+              alt="Uploading..."
+              className="w-full h-full object-contain opacity-50"
+            />
+            <div className="absolute inset-0 flex flex-col items-center justify-center space-y-3">
+              <div className="w-14 h-14 rounded-full border-[3px] border-emerald-400 border-t-transparent animate-spin" />
+              <p className="text-white text-sm font-bold">Sending to Server...</p>
+              <p className="text-zinc-400 text-xs">The backend will process the scan</p>
+>>>>>>> origin/main
             </div>
           </div>
         )}
       </div>
 
       {/* Bottom Controls */}
+<<<<<<< HEAD
       <div className="relative z-10 bg-gradient-to-t from-black/90 to-transparent pt-4 px-6 pb-safe" style={{ paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}>
         {cameraState === 'active' && (
           <div className="flex items-center justify-between">
@@ -457,6 +602,13 @@ function CameraContent() {
               className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all active:scale-90 cursor-pointer"
               title="Upload from Device"
             >
+=======
+      <div className="relative z-10 bg-gradient-to-t from-black/90 to-transparent pt-6 pb-8 px-6">
+        {cameraState === 'active' && (
+          <div className="flex items-center justify-between">
+            {/* Native Mobile Gallery / Camera Fallback */}
+            <label className="w-12 h-12 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-white/20 transition-all active:scale-90 cursor-pointer" title="Upload from Device">
+>>>>>>> origin/main
               <ImageIcon className="w-5 h-5" />
               <input
                 type="file"
@@ -487,6 +639,7 @@ function CameraContent() {
         )}
 
         {cameraState === 'captured' && (
+<<<<<<< HEAD
           <div className="space-y-3">
             <div className="flex items-center justify-center gap-2 text-xs text-zinc-300">
               <span className="text-zinc-500">Panel Type:</span>
@@ -517,6 +670,23 @@ function CameraContent() {
                 Send for Analysis
               </button>
             </div>
+=======
+          <div className="flex items-center gap-3">
+            <button
+              onClick={retake}
+              className="flex-1 py-3.5 bg-white/10 backdrop-blur-md border border-white/20 text-white font-semibold rounded-xl text-sm flex items-center justify-center gap-2 hover:bg-white/20 transition-all active:scale-[0.98]"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Retake
+            </button>
+            <button
+              onClick={handleUpload}
+              className="flex-[2] py-3.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:shadow-[0_0_30px_rgba(16,185,129,0.5)] transition-all active:scale-[0.98]"
+            >
+              <Upload className="w-4 h-4" />
+              Send for Analysis
+            </button>
+>>>>>>> origin/main
           </div>
         )}
 
@@ -535,8 +705,12 @@ function CameraContent() {
       {/* Custom scanning line animation */}
       <style jsx>{`
         @keyframes scan {
+<<<<<<< HEAD
           0%,
           100% {
+=======
+          0%, 100% {
+>>>>>>> origin/main
             top: 8%;
           }
           50% {
@@ -547,6 +721,7 @@ function CameraContent() {
     </div>
   );
 }
+<<<<<<< HEAD
 
 export default function InspectorCameraPage() {
   return (
@@ -561,3 +736,5 @@ export default function InspectorCameraPage() {
     </Suspense>
   );
 }
+=======
+>>>>>>> origin/main
