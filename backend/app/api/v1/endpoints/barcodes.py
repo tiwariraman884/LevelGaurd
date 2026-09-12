@@ -125,7 +125,7 @@ def verify_barcode_product(
 @router.get(
     "/{barcode_value}",
     response_model=BarcodeProductResponse,
-    dependencies=[Depends(require_roles("admin", "inspector"))],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_barcode_product(
     barcode_value: str,
@@ -149,7 +149,7 @@ def get_barcode_product(
 @router.get(
     "/product/{product_id}",
     response_model=list[BarcodeResponse],
-    dependencies=[Depends(require_roles("admin", "inspector"))],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_product_barcodes(
     product_id: int,
@@ -160,4 +160,3 @@ def get_product_barcodes(
         db=db,
         product_id=product_id,
     )
-

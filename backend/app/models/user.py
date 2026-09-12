@@ -38,5 +38,7 @@ class User(Base):
     )
 
     inspections: Mapped[list["Inspection"]] = relationship(
-        back_populates="inspector"
+        "Inspection",
+        back_populates="inspector",
+        foreign_keys="Inspection.inspector_id",
     )

@@ -8,6 +8,12 @@ from app.models import Role, User
 ADMIN_EMAIL = "admin@labelguard.local"
 ADMIN_PASSWORD = "Admin@LabelGuard2026"
 
+REQUIRED_ROLES = {
+    "district_collector": "District-level escalation authority",
+    "state_admin": "State-level escalation authority",
+    "national_admin": "National-level escalation authority",
+}
+
 
 def seed_roles_and_admin() -> None:
     db = SessionLocal()
@@ -37,6 +43,34 @@ def seed_roles_and_admin() -> None:
             )
             db.add(inspector_role)
             db.flush()
+
+        auditor_role = db.scalar(
+            select(Role).where(Role.name == "auditor")
+        )
+
+        if auditor_role is None:
+            auditor_role = Role(
+                name="auditor",
+                description="Read-only inspection auditor",
+            )
+            db.add(auditor_role)
+            db.flush()
+
+        for role_name, description in REQUIRED_ROLES.items():
+            role = db.scalar(
+                select(Role).where(Role.name == role_name)
+            )
+            if role is None:
+                db.add(
+                    Role(
+                        name=role_name,
+                        description=description,
+                    )
+                )
+                db.flush()
+                print(f"Role created: {role_name}")
+            else:
+                print(f"Role already exists: {role_name}")
 
         # Create admin user if it does not exist.
         admin_user = db.scalar(

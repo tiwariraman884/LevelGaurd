@@ -16,8 +16,60 @@ DATE_TOKEN = r"(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\d{1,2}[/-][A-Za-z]{3,9}[/-]\d{2
 
 QUANTITY_PATTERN = (
     r"([0-9]+(?:[.,][0-9]+)?)\s*"
-    r"(mg|g|kg|ml|l|cl|oz|lb|pcs?|nos?)"
+    r"(mg|g|kg|gm|gms|kgs|ml|l|cl|ltr|ltrs|mls|oz|lb|pcs?|nos?|units?|n|u)\.?"
 )
+
+_CANONICAL_UNIT_MAP: dict[str, str] = {
+    "gm": "g",
+    "gms": "g",
+    "g": "g",
+    "gram": "g",
+    "grams": "g",
+    "kg": "kg",
+    "kgs": "kg",
+    "kilo": "kg",
+    "kilos": "kg",
+    "kilogram": "kg",
+    "kilograms": "kg",
+    "mg": "mg",
+    "mgs": "mg",
+    "milligram": "mg",
+    "milligrams": "mg",
+    "ml": "ml",
+    "mls": "ml",
+    "millilitre": "ml",
+    "millilitres": "ml",
+    "l": "l",
+    "ltr": "l",
+    "ltrs": "l",
+    "lt": "l",
+    "lts": "l",
+    "litre": "l",
+    "litres": "l",
+    "m": "m",
+    "cm": "cm",
+    "mm": "mm",
+    "km": "km",
+    "m2": "m2",
+    "cm2": "cm2",
+    "n": "N",
+    "u": "U",
+    "pc": "N",
+    "pcs": "N",
+    "no": "N",
+    "nos": "N",
+    "number": "N",
+    "piece": "N",
+    "pieces": "N",
+}
+
+
+def _canonical_unit(u: str | None) -> str:
+    if not u:
+        return ""
+    clean = str(u).lower().strip().rstrip(".")
+    return _CANONICAL_UNIT_MAP.get(clean, clean)
+
 
 MRP_PATTERN = (
     r"(?:MRP|M\.R\.P\.?|MAX(?:IMUM)?\s*RETAIL\s*PRICE)"
@@ -426,7 +478,7 @@ def _extract_quantity_from_image(
 
                 match = re.search(
                     r"([0-9]+(?:[.,][0-9]+)?)"
-                    r"(MG|G|KG|ML|L|CL|OZ|LB|PCS?|NOS?)",
+                    r"(MG|G|KG|GM|GMS|KGS|ML|L|CL|LTR|LTRS|MLS|OZ|LB|PCS?|NOS?|UNITS?|N|U)\.?",
                     normalized,
                     flags=re.IGNORECASE,
                 )
@@ -444,7 +496,8 @@ def _extract_quantity_from_image(
                 ):
                     continue
 
-                unit = match.group(2).lower()
+                raw_unit = match.group(2)
+                unit = _canonical_unit(raw_unit)
 
                 rb = (
                     regional_word.get("bbox")
@@ -553,6 +606,7 @@ def _extract_quantity_from_image(
                         "score": score,
                         "value": value,
                         "unit": unit,
+                        "raw_unit": raw_unit,
                         "raw": raw,
                         "confidence": confidence,
                         "word": absolute_word,
@@ -590,6 +644,7 @@ def _extract_quantity_from_image(
                 2,
             ),
             [best["word"]],
+            best.get("raw_unit", best["unit"]),
         )
 
     finally:
@@ -605,7 +660,7 @@ def _extract_quantity_from_image(
 
 def _extract_quantity(
     text: str,
-) -> tuple[float | None, str | None, str | None, float | None]:
+) -> tuple[float | None, str | None, str | None, float | None, str | None]:
     """
     Extract declared net quantity.
 
@@ -648,13 +703,15 @@ def _extract_quantity(
         ):
             continue
 
-        unit = match.group(2).lower()
+        raw_unit = match.group(2).strip()
+        unit = _canonical_unit(raw_unit)
 
         return (
             value,
             unit,
             raw,
             85.0,
+            raw_unit,
         )
 
     # ---------------------------------------------------------
@@ -696,9 +753,11 @@ def _extract_quantity(
             None,
             None,
             None,
+            None,
         )
 
     return (
+        None,
         None,
         None,
         None,
@@ -2007,6 +2066,187 @@ def _detect_manufacturer_candidate(
     return best if best else None
 
 
+def _calibrate_batch_confidence(
+    best: dict[str, Any],
+    all_candidates: list[dict[str, Any]],
+) -> tuple[float, list[str]]:
+    """
+    Compute a defensible, evidence-based confidence for a batch/lot candidate.
+
+    This is intentionally separate from:
+      - raw_ocr_confidence : Tesseract per-word confidence (often very low for
+        low-contrast stamps --- e.g. 9.0 --- even when the value is correct).
+      - candidate ranking score : internal value used to pick the best candidate;
+        must not be exposed as confidence.
+
+    Calibrated confidence accumulates independent evidence signals and is bounded
+    [0, 99].  A token that passes all semantic filters but has no spatial or
+    normalization evidence will still score below 35 and remain REVIEW.
+
+    The candidate ranking ``score`` is deliberately NEVER read here.  The score
+    is a selection heuristic only; the calibrated confidence is derived from
+    explicit, auditable evidence fields that the candidate paths populate:
+    ``normalization_evidence`` and ``spatial_evidence``.
+
+    Returns
+    -------
+    (calibrated_confidence, reasons)
+        calibrated_confidence : float  in [0, 99]
+        reasons               : list[str]  audit trail of every signal applied
+    """
+    raw_conf = float(best.get("confidence", 0.0))
+    normalized = str(best.get("value", "")).upper()
+    normalization_evidence: list[str] = best.get("normalization_evidence") or []
+    source = str(best.get("source", "unknown"))
+    psm = int(best.get("psm", 0))
+    spatial_evidence: dict[str, Any] = best.get("spatial_evidence") or {}
+
+    points = 0.0
+    reasons: list[str] = []
+
+    # 1. OCR evidence (capped at 30). Raw OCR confidence is genuine but weak
+    # corroboration only; it can never dominate a random token that happens
+    # to be read with decent confidence.
+    base = min(raw_conf, 30.0)
+    points += base
+    reasons.append(f"raw_ocr_conf={raw_conf:.1f}->base={base:.1f}")
+
+    # 2. Structural validity: letters AND digits.
+    has_letters = bool(re.search(r"[A-Z]", normalized))
+    has_digits = bool(re.search(r"\d", normalized))
+    if has_letters and has_digits:
+        points += 9.0
+        reasons.append("structural:letters+digits=+9")
+    else:
+        points -= 12.0
+        reasons.append("structural:no-letters-or-digits=-12")
+
+    # 3. Lot-code shape: a single leading letter followed by 6-9 digits
+    # (e.g. D63240194) is the canonical printed batch/lot shape.  This is a
+    # structural signal, not a license to inflate arbitrary tokens.
+    if re.fullmatch(r"[A-Z]\d{6,9}", normalized):
+        points += 6.0
+        reasons.append("structure:lot-code-shape=+6")
+
+    # 4. Length evidence.
+    n_len = len(normalized)
+    if 5 <= n_len <= 10:
+        points += 6.0
+        reasons.append(f"length:{n_len}(5-10)=+6")
+    elif 11 <= n_len <= 12:
+        points += 4.0
+        reasons.append(f"length:{n_len}(11-12)=+4")
+    elif n_len == 4:
+        points -= 3.0
+        reasons.append(f"length:{n_len}(minimum)=-3")
+    else:
+        points -= 8.0
+        reasons.append(f"length:{n_len}(too-short-or-long)=-8")
+
+    # 5. Look-alike class safety net.  These should be rejected upstream, but
+    # the calibration must never let a quantity/date/price token reach the
+    # compliance threshold if one slips through.
+    if re.fullmatch(
+        r"\d+(?:[.,]\d+)?(?:MG|G|KG|ML|L|CL|OZ|LB|PCS?|NOS?)",
+        normalized,
+        flags=re.IGNORECASE,
+    ):
+        points -= 15.0
+        reasons.append("lookalike:quantity-like=-15")
+    elif re.fullmatch(
+        r"\d{1,2}[A-Z]{2,6}\d{2,4}",
+        normalized,
+    ):
+        points -= 15.0
+        reasons.append("lookalike:date-like=-15")
+    elif re.match(
+        r"^(?:RS|BS|PS|RE|KS|INR|MRP)\d+",
+        normalized,
+    ):
+        points -= 12.0
+        reasons.append("lookalike:price-like=-12")
+    elif re.fullmatch(r"\d+", normalized):
+        points -= 12.0
+        reasons.append("lookalike:numeric-only=-12")
+
+    # 6. Normalization evidence.
+    # A first-char O->D correction is a known Tesseract confusion for stamped
+    # D-prefixed codes and adds meaningful evidence.  A punctuation-strip
+    # (e.g. "D63'240194" -> D63240194) is justified normalization.  Any other
+    # normalization is penalized; a clean read is neutral (no reward/penalty).
+    if any(
+        "first-char" in ev or "O-to-D" in ev or "O_to_D" in ev
+        for ev in normalization_evidence
+    ):
+        points += 10.0
+        reasons.append("normalization:O-to-D-correction=+10")
+    elif any(
+        "punctuation" in ev or "punct" in ev
+        for ev in normalization_evidence
+    ):
+        points += 6.0
+        reasons.append("normalization:punctuation-stripped=+6")
+    elif normalization_evidence:
+        points -= 6.0
+        reasons.append("normalization:unjustified=-6")
+    else:
+        reasons.append("normalization:none=0")
+
+    # 7. Source trustworthiness. Dedicated stamp-ROI OCR (with contrast
+    # variants + enlargement) is the strongest source.  The shared stamp
+    # parser is also strong.  A token caught opportunistically in the
+    # full-image stream is weak evidence.
+    if source == "direct_stamp_ocr":
+        points += 12.0
+        reasons.append("source:direct_stamp_ocr=+12")
+    elif source == "shared_stamp_parser":
+        points += 8.0
+        reasons.append("source:shared_stamp_parser=+8")
+    elif source == "direct_word_ocr":
+        points += 2.0
+        reasons.append("source:direct_word_ocr=+2")
+    else:
+        reasons.append("source:unknown=0")
+
+    # 8. PSM evidence. PSM 11 (sparse-text) is better suited to isolated
+    # stamped codes.
+    if psm == 11:
+        points += 4.0
+        reasons.append("psm:11(sparse-text)=+4")
+
+    # 9. Explicit spatial/semantic evidence.  These flags are populated by
+    # the candidate paths; they are real, auditable evidence and not a
+    # reconstruction from the ranking score.
+    if spatial_evidence.get("dedicated_stamp_roi"):
+        points += 6.0
+        reasons.append("spatial:dedicated_stamp_roi=+6")
+    elif spatial_evidence.get("batch_band") and source == "direct_stamp_ocr":
+        points += 6.0
+        reasons.append("spatial:batch_band(direct_stamp_ocr)=+6")
+    elif spatial_evidence.get("batch_band") and source == "direct_word_ocr":
+        points += 2.0
+        reasons.append("spatial:batch_band(direct_word_ocr)=+2")
+
+    if spatial_evidence.get("near_quantity_line"):
+        points += 5.0
+        reasons.append("spatial:near_quantity_line=+5")
+
+    # 10. Agreement: same normalized value in >= 2 candidates means
+    # independent OCR runs (different PSMs / preprocessing variants) reached
+    # the same conclusion.
+    agreement_count = sum(
+        1
+        for c in all_candidates
+        if str(c.get("value", "")).upper() == normalized
+    )
+    if agreement_count >= 2:
+        points += 10.0
+        reasons.append(f"agreement:count={agreement_count}>=2=+10")
+
+    calibrated = round(min(99.0, max(0.0, points)), 2)
+    return calibrated, reasons
+
+
 def _extract_batch_from_image(
     image_path: str | Path,
     words: list[dict[str, Any]],
@@ -2096,6 +2336,25 @@ def _extract_batch_from_image(
 
         if quantity_y is not None and y >= quantity_y - 5:
             continue
+
+        # Annotate shared-parser candidates with source + explicit evidence
+        # metadata so calibration treats every candidate path consistently.
+        candidate.setdefault(
+            "source",
+            "shared_stamp_parser",
+        )
+        candidate.setdefault(
+            "normalization_evidence",
+            [],
+        )
+        candidate.setdefault(
+            "spatial_evidence",
+            {
+                "batch_band": True,
+                "near_quantity_line": False,
+                "dedicated_stamp_roi": False,
+            },
+        )
 
         filtered.append(candidate)
 
@@ -2247,10 +2506,39 @@ def _extract_batch_from_image(
             ):
                 continue
 
-            # Reject date-like structures.
-            if re.fullmatch(
-                r"\d{1,4}[/-]\d{1,4}[/-]\d{1,4}",
-                normalized,
+            # Reject price/MRP tokens: Rs, RS, BS, PS, RE, INR followed by a
+            # decimal number or currency prefix (e.g. 'Rs,0.23', 'Rs.0.299', 'Bs.0.38').
+            if (
+                re.match(
+                    r"^(?:RS|INR|BS|PS|RE|KS|MRP)\d+$",
+                    normalized,
+                    re.IGNORECASE,
+                )
+                and re.search(
+                    r"[.,]",
+                    raw,
+                )
+            ) or re.match(
+                r"^(?:RS|BS|PS|RE|KS|INR)[\.,\s]*\d+",
+                raw,
+                re.IGNORECASE,
+            ):
+                continue
+
+            # Reject date-like structures and date fragments (e.g. 30/06/26, 30/oc, 27/10).
+            if (
+                re.fullmatch(
+                    r"\d{1,4}[/-]\d{1,4}[/-]\d{1,4}",
+                    normalized,
+                )
+                or re.search(
+                    r"\d{1,2}[/-](?:[A-Za-z]{2,4}|\d{1,2})",
+                    raw,
+                )
+                or re.search(
+                    r"(?:[A-Za-z]{2,4}|\d{1,2})[/-]\d{1,4}",
+                    raw,
+                )
             ):
                 continue
 
@@ -2268,13 +2556,10 @@ def _extract_batch_from_image(
             )
 
             # Semantic Batch band:
-            # after stamped dates and before quantity.
+            # after stamped dates. Batch stamps may appear anywhere
+            # between or below the dates, including bottom seal.
             if direct_date_y is not None:
                 if y <= direct_date_y + 8:
-                    continue
-
-            if direct_quantity_y is not None:
-                if y >= direct_quantity_y - 5:
                     continue
 
             normalized_evidence: list[str] = []
@@ -2292,6 +2577,21 @@ def _extract_batch_from_image(
                 normalized_evidence.append(
                     "ocr-confusion:first-char-O-to-D"
                 )
+            elif (
+                re.search(r"[^A-Za-z0-9]", raw)
+                and normalized
+                == re.sub(
+                    r"[^A-Z0-9]",
+                    "",
+                    raw.upper(),
+                )
+            ):
+                # Justified normalization: only punctuation was stripped
+                # (e.g. "D63'240194" -> D63240194).  No characters were
+                # substituted, so this is trustworthy evidence.
+                normalized_evidence.append(
+                    "normalization:punctuation-stripped"
+                )
 
             score = confidence
 
@@ -2304,6 +2604,7 @@ def _extract_batch_from_image(
 
             # Slight preference for candidates visibly close to
             # the quantity line while still remaining above it.
+            near_quantity_line = False
             if direct_quantity_y is not None:
                 distance = abs(
                     direct_quantity_y - y
@@ -2311,6 +2612,7 @@ def _extract_batch_from_image(
 
                 if distance <= 50:
                     score += 8.0
+                    near_quantity_line = True
 
             direct_candidates.append(
                 {
@@ -2319,6 +2621,7 @@ def _extract_batch_from_image(
                     "raw_value": raw,
                     "confidence": confidence,
                     "score": score,
+                    "source": "direct_word_ocr",
                     "bbox": {
                         "x": x,
                         "y": y,
@@ -2332,6 +2635,11 @@ def _extract_batch_from_image(
                         )
                     ),
                     "normalization_evidence": normalized_evidence,
+                    "spatial_evidence": {
+                        "batch_band": True,
+                        "near_quantity_line": near_quantity_line,
+                        "dedicated_stamp_roi": False,
+                    },
                 }
             )
 
@@ -2373,10 +2681,14 @@ def _extract_batch_from_image(
                 # Broad enough to capture MFG / USE BY / SERVES /
                 # BATCH / NET QUANTITY while excluding most nutrition
                 # and ingredients text.
+                # Bottom boundary extended to 0.97 (was 0.89) so that
+                # batch stamps printed at the very bottom edge of the
+                # label (e.g. D63240194 at y≈94% of image height) are
+                # captured by the ROI crop.
                 x1 = int(width * 0.68)
                 x2 = width
                 y1 = int(height * 0.68)
-                y2 = int(height * 0.89)
+                y2 = int(height * 0.97)
 
                 crop = image[
                     y1:y2,
@@ -2511,10 +2823,42 @@ def _extract_batch_from_image(
                                     ):
                                         continue
 
-                                    # Reject date-like values.
-                                    if re.fullmatch(
-                                        r"\d{1,4}[/-]\d{1,4}[/-]\d{1,4}",
-                                        normalized,
+                                    # Reject price/MRP tokens.
+                                    # Raw text like 'Rs,0.23', 'Rs.0.299',
+                                    # or 'Bs.0.38' normalises to RS023 /
+                                    # BS038, which looks like a valid batch
+                                    # ID but is actually a price/MRP stamp.
+                                    if (
+                                        re.match(
+                                            r"^(?:RS|INR|BS|PS|RE|KS|MRP)\d+$",
+                                            normalized,
+                                            re.IGNORECASE,
+                                        )
+                                        and re.search(
+                                            r"[.,]",
+                                            raw,
+                                        )
+                                    ) or re.match(
+                                        r"^(?:RS|BS|PS|RE|KS|INR)[\.,\s]*\d+",
+                                        raw,
+                                        re.IGNORECASE,
+                                    ):
+                                        continue
+
+                                    # Reject date-like values and date fragments.
+                                    if (
+                                        re.fullmatch(
+                                            r"\d{1,4}[/-]\d{1,4}[/-]\d{1,4}",
+                                            normalized,
+                                        )
+                                        or re.search(
+                                            r"\d{1,2}[/-](?:[A-Za-z]{2,4}|\d{1,2})",
+                                            raw,
+                                        )
+                                        or re.search(
+                                            r"(?:[A-Za-z]{2,4}|\d{1,2})[/-]\d{1,4}",
+                                            raw,
+                                        )
                                     ):
                                         continue
 
@@ -2574,6 +2918,24 @@ def _extract_batch_from_image(
                                         normalization_evidence.append(
                                             "ocr-confusion:first-char-O-to-D"
                                         )
+                                    elif (
+                                        re.search(
+                                            r"[^A-Za-z0-9]",
+                                            raw,
+                                        )
+                                        and normalized
+                                        == re.sub(
+                                            r"[^A-Z0-9]",
+                                            "",
+                                            raw.upper(),
+                                        )
+                                    ):
+                                        # Justified normalization: only
+                                        # punctuation was stripped.  No
+                                        # characters were substituted.
+                                        normalization_evidence.append(
+                                            "normalization:punctuation-stripped"
+                                        )
 
                                     score = confidence
 
@@ -2605,6 +2967,7 @@ def _extract_batch_from_image(
                                             "raw_value": raw,
                                             "confidence": confidence,
                                             "score": score,
+                                            "source": "direct_stamp_ocr",
                                             "bbox": {
                                                 "x": int(
                                                     x1
@@ -2631,6 +2994,11 @@ def _extract_batch_from_image(
                                             },
                                             "psm": psm,
                                             "normalization_evidence": normalization_evidence,
+                                            "spatial_evidence": {
+                                                "batch_band": True,
+                                                "near_quantity_line": False,
+                                                "dedicated_stamp_roi": True,
+                                            },
                                         }
                                     )
 
@@ -2649,8 +3017,11 @@ def _extract_batch_from_image(
                                 ):
                                     continue
 
+                                # Upper limit aligned with the ROI
+                                # bottom boundary (0.97). Batch stamps
+                                # may appear at the very bottom edge.
                                 if cy > int(
-                                    height * 0.84
+                                    height * 0.97
                                 ):
                                     continue
 
@@ -2715,16 +3086,30 @@ def _extract_batch_from_image(
     ):
         return None, None, None, []
 
-    confidence = float(
+    raw_ocr_confidence = float(
         best.get(
             "confidence",
             0,
         )
     )
 
+    # Compute evidence-based calibrated confidence.
+    # raw_ocr_confidence is preserved in the evidence dict below.
+    # The candidate ranking score is intentionally NOT used as confidence.
+    calibrated_confidence, calibration_reasons = _calibrate_batch_confidence(
+        best,
+        filtered,
+    )
+
     evidence = {
         "text": raw_value,
-        "confidence": confidence,
+        # Raw Tesseract per-word confidence — preserved for audit.
+        "confidence": raw_ocr_confidence,
+        "raw_ocr_confidence": raw_ocr_confidence,
+        # Evidence-weighted confidence — what is persisted to Declaration.
+        "calibrated_confidence": calibrated_confidence,
+        "calibration_reasons": calibration_reasons,
+        "confidence_method": "evidence_weighted_v1",
         "bbox": best["bbox"],
         "block_num": 0,
         "par_num": 0,
@@ -2733,7 +3118,10 @@ def _extract_batch_from_image(
             "psm",
             11,
         ),
-        "source": "direct_stamp_ocr",
+        "source": best.get(
+            "source",
+            "direct_stamp_ocr",
+        ),
         "normalization_evidence": best.get(
             "normalization_evidence",
             [],
@@ -2743,16 +3131,7 @@ def _extract_batch_from_image(
     return (
         normalized_value,
         raw_value,
-        round(
-            min(
-                99.0,
-                max(
-                    0.0,
-                    confidence,
-                ),
-            ),
-            2,
-        ),
+        calibrated_confidence,
         [evidence],
     )
 
@@ -2976,7 +3355,7 @@ def _select_stamp_quantity_candidate(
 
     quantity_re = re.compile(
         r"^([0-9]+(?:[.,][0-9]+)?)\s*"
-        r"(mg|g|kg|ml|l|cl|oz|lb|pcs?|nos?)$",
+        r"(mg|g|kg|gm|gms|kgs|ml|l|cl|ltr|ltrs|mls|oz|lb|pcs?|nos?|units?|n|u)\.?$",
         flags=re.IGNORECASE,
     )
 
@@ -3028,7 +3407,8 @@ def _select_stamp_quantity_candidate(
         if not 0 < quantity <= 50000:
             continue
 
-        unit = str(match.group(2)).lower()
+        raw_unit = str(match.group(2)).strip()
+        unit = _canonical_unit(raw_unit)
 
         bbox = dict(candidate.get("bbox") or {})
 
@@ -3054,6 +3434,7 @@ def _select_stamp_quantity_candidate(
             {
                 "quantity": quantity,
                 "unit": unit,
+                "raw_unit": raw_unit,
                 "raw_value": raw_value,
                 "normalized": normalized,
                 "confidence": confidence,
@@ -3227,6 +3608,7 @@ def _select_stamp_quantity_candidate(
         round(float(best["confidence"]), 2),
         stamp_word,
         detail,
+        str(best.get("raw_unit") or best["unit"]),
     )
 
 
@@ -3292,6 +3674,9 @@ def extract_declarations(
         ),
         "batch_number": _build_field(
             "batch_number"
+        ),
+        "fssai_license": _build_field(
+            "fssai_license"
         ),
         "product_name": _build_field(
             "product_name"
@@ -3391,9 +3776,13 @@ def extract_declarations(
     # ---------------------------------------------------------
     # Quantity
     # ---------------------------------------------------------
-    quantity, unit, quantity_raw, quantity_confidence = (
-        _extract_quantity(raw_text)
-    )
+    raw_unit = None
+    qty_res = _extract_quantity(raw_text)
+    if len(qty_res) == 5:
+        quantity, unit, quantity_raw, quantity_confidence, raw_unit = qty_res
+    else:
+        quantity, unit, quantity_raw, quantity_confidence = qty_res
+        raw_unit = unit
 
     regional_quantity_evidence: list[dict[str, Any]] = []
 
@@ -3406,14 +3795,26 @@ def extract_declarations(
         except Exception:
             stamp_selection = None
         if stamp_selection is not None:
-            (
-                quantity,
-                unit,
-                quantity_raw,
-                quantity_confidence,
-                stamp_word,
-                stamp_detail,
-            ) = stamp_selection
+            if len(stamp_selection) >= 7:
+                (
+                    quantity,
+                    unit,
+                    quantity_raw,
+                    quantity_confidence,
+                    stamp_word,
+                    stamp_detail,
+                    raw_unit,
+                ) = stamp_selection
+            else:
+                (
+                    quantity,
+                    unit,
+                    quantity_raw,
+                    quantity_confidence,
+                    stamp_word,
+                    stamp_detail,
+                ) = stamp_selection
+                raw_unit = unit
             regional_quantity_evidence = [stamp_word]
             words.extend(regional_quantity_evidence)
             fields["net_quantity"]["detection_evidence"] = stamp_detail
@@ -3424,18 +3825,31 @@ def extract_declarations(
         quantity is None
         and image_path is not None
     ):
-        (
-            regional_quantity,
-            regional_unit,
-            regional_raw,
-            regional_confidence,
-            regional_words,
-        ) = _extract_quantity_from_image(
+        regional_res = _extract_quantity_from_image(
             image_path,
             words,
         )
 
-        if regional_quantity is not None:
+        if regional_res and regional_res[0] is not None:
+            if len(regional_res) >= 6:
+                (
+                    regional_quantity,
+                    regional_unit,
+                    regional_raw,
+                    regional_confidence,
+                    regional_words,
+                    raw_unit,
+                ) = regional_res
+            else:
+                (
+                    regional_quantity,
+                    regional_unit,
+                    regional_raw,
+                    regional_confidence,
+                    regional_words,
+                ) = regional_res
+                raw_unit = regional_unit
+
             quantity = regional_quantity
             unit = regional_unit
             quantity_raw = regional_raw
@@ -3453,6 +3867,8 @@ def extract_declarations(
         fields["net_quantity"]["value"] = {
             "quantity": quantity,
             "unit": unit,
+            "raw_unit": raw_unit or unit,
+            "printed_unit": raw_unit or unit,
         }
         fields["net_quantity"][
             "raw_value"
@@ -4226,8 +4642,19 @@ def extract_declarations(
         fields["batch_number"]["raw_value"] = (
             batch_raw or batch
         )
+
+        # NOTE (extraction status vs compliance status):
+        # The persisted confidence below is the EVIDENCE-WEIGHTED calibrated
+        # confidence produced by _calibrate_batch_confidence() — never the raw
+        # OCR confidence and never the candidate ranking score.  The Legal
+        # Metrology rule engine reads this persisted confidence when deciding
+        # LG-BATCH: raw OCR may legitimately be very low (e.g. 9.0 for a
+        # low-contrast stamp) while calibrated confidence >= 35 lets the rule
+        # PASS.  The extraction field ``status`` ("review" below the 60 band)
+        # is a separate human-review signal and must not short-circuit the
+        # compliance decision.
         fields["batch_number"]["confidence"] = (
-            batch_confidence or 65.0
+            float(batch_confidence or 0.0)
         )
 
         # Preserve detector-level evidence even when the normalized
@@ -4652,256 +5079,154 @@ def extract_declarations(
             break
 
     if unit_price is None:
-        # OCR may separate "Rs" and the amount into different
-        # words. Identify the amount spatially relative to the
-        # currency token instead of searching the entire OCR text.
-        partial_usp = None
+        # Check single-token USP formats from OCR words (e.g. 'Rs.0.299', 'Rs.0.29/g', '₹0.29/g')
+        usp_candidates = []
+        for w in words:
+            w_text = str(w.get("text", "")).strip()
+            w_box = w.get("bbox") or {}
+            w_y = float(w_box.get("y", 0))
+            w_conf = float(w.get("confidence", 0) or 0)
 
-        for rs_word in words:
-            rs_text = str(
-                rs_word.get(
-                    "text",
-                    "",
-                )
-            ).strip()
-
-            if not re.fullmatch(
-                r"R[Ss]\.?",
-                rs_text,
-            ):
-                continue
-
-            rs_box = (
-                rs_word.get(
-                    "bbox"
-                )
-                or {}
+            m = re.match(
+                r"^(?:RS\.?|₹|INR|BS\.?|PS\.?)\s*([0-9]\.[0-9]{2,4})(?:\s*/\s*([a-zA-Z]+))?$",
+                w_text,
+                re.IGNORECASE,
             )
-
-            rs_x = float(
-                rs_box.get(
-                    "x",
-                    0,
+            if m:
+                p_val = _safe_float(m.group(1))
+                u_val = (m.group(2) or "").lower() or (
+                    fields.get("net_quantity", {}).get("value", {}).get("unit")
+                    if isinstance(fields.get("net_quantity", {}).get("value"), dict)
+                    else "g"
                 )
+                if p_val is not None and 0 < p_val < 1000:
+                    usp_candidates.append({
+                        "price": p_val,
+                        "unit": u_val or "g",
+                        "raw_value": w_text,
+                        "confidence": w_conf,
+                        "bbox": w_box,
+                        "y": w_y,
+                    })
+
+        if usp_candidates:
+            # Prefer candidates in the pricing/stamp band
+            best_cand = max(
+                usp_candidates,
+                key=lambda c: (c["y"] > 700, c["confidence"]),
             )
-
-            rs_y = float(
-                rs_box.get(
-                    "y",
-                    0,
-                )
+            fields["unit_sale_price"]["value"] = {
+                "price": best_cand["price"],
+                "unit": best_cand["unit"],
+            }
+            fields["unit_sale_price"]["raw_value"] = best_cand["raw_value"]
+            fields["unit_sale_price"]["confidence"] = best_cand["confidence"]
+            fields["unit_sale_price"]["evidence"] = [
+                {
+                    "text": best_cand["raw_value"],
+                    "confidence": best_cand["confidence"],
+                    "bbox": best_cand["bbox"],
+                }
+            ]
+            fields["unit_sale_price"]["status"] = (
+                "extracted" if best_cand["confidence"] >= 60.0 else "review"
             )
+        else:
+            # Spatial multi-token fallback: "Rs" adjacent to an amount in the pricing region
+            partial_usp = None
 
-            rs_w = float(
-                rs_box.get(
-                    "width",
-                    0,
-                )
-            )
+            for rs_word in words:
+                rs_text = str(rs_word.get("text", "")).strip()
 
-            rs_h = float(
-                rs_box.get(
-                    "height",
-                    0,
-                )
-            )
-
-            nearby_amounts = []
-
-            for amount_word in words:
-                amount_text = str(
-                    amount_word.get(
-                        "text",
-                        "",
-                    )
-                ).strip()
-
-                amount_box = (
-                    amount_word.get(
-                        "bbox"
-                    )
-                    or {}
-                )
-
-                amount_x = float(
-                    amount_box.get(
-                        "x",
-                        0,
-                    )
-                )
-
-                amount_y = float(
-                    amount_box.get(
-                        "y",
-                        0,
-                    )
-                )
-
-                amount_h = float(
-                    amount_box.get(
-                        "height",
-                        0,
-                    )
-                )
-
-                # The amount must be to the right of Rs and
-                # approximately on the same OCR row.
-                same_row = (
-                    abs(
-                        amount_y
-                        - rs_y
-                    )
-                    <= max(
-                        rs_h,
-                        amount_h,
-                        20.0,
-                    )
-                    * 1.5
-                )
-
-                to_right = (
-                    amount_x
-                    >= rs_x + rs_w - 5.0
-                )
-
-                if not same_row or not to_right:
+                if not re.fullmatch(r"R[Ss]\.?", rs_text):
                     continue
 
-                normalized_amount = re.sub(
-                    r"[^0-9.,]",
-                    "",
-                    amount_text,
-                )
+                rs_box = rs_word.get("bbox") or {}
+                rs_x = float(rs_box.get("x", 0))
+                rs_y = float(rs_box.get("y", 0))
+                rs_w = float(rs_box.get("width", 0))
+                rs_h = float(rs_box.get("height", 0))
 
-                if not re.fullmatch(
-                    r"\d+(?:[.,]\d+)?",
-                    normalized_amount,
-                ):
-                    continue
+                nearby_amounts = []
 
-                amount_value = _safe_float(
-                    normalized_amount
-                )
+                for amount_word in words:
+                    amount_text = str(amount_word.get("text", "")).strip()
+                    amount_box = amount_word.get("bbox") or {}
+                    amount_x = float(amount_box.get("x", 0))
+                    amount_y = float(amount_box.get("y", 0))
+                    amount_h = float(amount_box.get("height", 0))
 
-                if amount_value is None or not (
-                    0 < amount_value < 100000
-                ):
-                    continue
+                    same_row = abs(amount_y - rs_y) <= max(rs_h, amount_h, 20.0) * 1.5
+                    to_right = amount_x >= rs_x + rs_w - 5.0
 
-                distance = (
-                    amount_x
-                    - (
-                        rs_x + rs_w
-                    )
-                )
+                    if not same_row or not to_right:
+                        continue
 
-                nearby_amounts.append(
-                    {
+                    normalized_amount = re.sub(r"[^0-9.,]", "", amount_text)
+
+                    if not re.fullmatch(r"\d+(?:[.,]\d+)?", normalized_amount):
+                        continue
+
+                    amount_value = _safe_float(normalized_amount)
+
+                    # Restrict to reasonable unit prices (< 1000)
+                    if amount_value is None or not (0 < amount_value < 1000):
+                        continue
+
+                    distance = amount_x - (rs_x + rs_w)
+
+                    nearby_amounts.append({
                         "value": amount_value,
                         "raw_value": amount_text,
-                        "confidence": float(
-                            amount_word.get(
-                                "confidence",
-                                0,
-                            )
-                        ),
+                        "confidence": float(amount_word.get("confidence", 0) or 0),
                         "bbox": amount_box,
                         "distance": distance,
-                    }
-                )
+                    })
 
-            if nearby_amounts:
-                nearby_amounts.sort(
-                    key=lambda item: (
-                        item["distance"],
-                        -item["confidence"],
+                if nearby_amounts:
+                    nearby_amounts.sort(key=lambda item: (item["distance"], -item["confidence"]))
+                    best_amount = nearby_amounts[0]
+                    u_val = (
+                        fields.get("net_quantity", {}).get("value", {}).get("unit")
+                        if isinstance(fields.get("net_quantity", {}).get("value"), dict)
+                        else "g"
                     )
-                )
 
-                best_amount = nearby_amounts[0]
-
-                partial_usp = {
-                    "price": best_amount["value"],
-                    "unit": None,
-                    "raw_value": (
-                        f"{rs_text} "
-                        f"{best_amount['raw_value']}"
-                    ),
-                    "confidence": min(
-                        float(
-                            rs_word.get(
-                                "confidence",
-                                0,
-                            )
+                    partial_usp = {
+                        "price": best_amount["value"],
+                        "unit": u_val or "g",
+                        "raw_value": f"{rs_text} {best_amount['raw_value']}",
+                        "confidence": min(
+                            float(rs_word.get("confidence", 0) or 0),
+                            best_amount["confidence"],
                         ),
-                        best_amount["confidence"],
-                    ),
-                    "evidence": [
-                        {
-                            "text": rs_text,
-                            "confidence": rs_word.get(
-                                "confidence"
-                            ),
-                            "bbox": rs_box,
-                        },
-                        {
-                            "text": best_amount[
-                                "raw_value"
-                            ],
-                            "confidence": best_amount[
-                                "confidence"
-                            ],
-                            "bbox": best_amount[
-                                "bbox"
-                            ],
-                        },
-                    ],
+                        "evidence": [
+                            {"text": rs_text, "confidence": rs_word.get("confidence"), "bbox": rs_box},
+                            {"text": best_amount["raw_value"], "confidence": best_amount["confidence"], "bbox": best_amount["bbox"]},
+                        ],
+                    }
+                    break
+
+            if partial_usp is not None:
+                fields["unit_sale_price"]["value"] = {
+                    "price": partial_usp["price"],
+                    "unit": partial_usp["unit"],
                 }
+                fields["unit_sale_price"]["raw_value"] = partial_usp["raw_value"]
+                fields["unit_sale_price"]["confidence"] = partial_usp["confidence"]
+                fields["unit_sale_price"]["evidence"] = partial_usp["evidence"]
+                fields["unit_sale_price"]["status"] = "review"
 
-                break
-
-        if partial_usp is not None:
-            fields["unit_sale_price"]["value"] = {
-                "price": partial_usp["price"],
-                "unit": None,
-            }
-
-            fields["unit_sale_price"]["raw_value"] = (
-                partial_usp["raw_value"]
-            )
-
-            fields["unit_sale_price"]["confidence"] = (
-                partial_usp["confidence"]
-            )
-
-            fields["unit_sale_price"]["evidence"] = (
-                partial_usp["evidence"]
-            )
-
-            fields["unit_sale_price"]["status"] = (
-                "review"
-            )
     if unit_price:
-        unit_text = (
-            unit_price.group(2)
-            .lower()
-            .replace(" ", "")
-        )
+        unit_text = unit_price.group(2).lower().replace(" ", "")
 
         fields["unit_sale_price"]["value"] = {
-            "price": _safe_float(
-                unit_price.group(1)
-            ),
+            "price": _safe_float(unit_price.group(1)),
             "unit": unit_text,
         }
-
-        fields["unit_sale_price"]["raw_value"] = (
-            _clean_text(
-                unit_price.group(0)
-            )
-        )
-
+        fields["unit_sale_price"]["raw_value"] = _clean_text(unit_price.group(0))
         fields["unit_sale_price"]["confidence"] = 78.0
+        fields["unit_sale_price"]["status"] = "extracted"
     # ---------------------------------------------------------
     # Product name
     # ---------------------------------------------------------
@@ -4944,32 +5269,3 @@ def extract_declarations(
         "extractor_version": "0.6.5",
         "legal_framework": "Legal Metrology (Packaged Commodities) Rules, 2011 + applicable amendments",
     }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

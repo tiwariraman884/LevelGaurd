@@ -160,6 +160,27 @@ def _evaluate_check(
     if operator == "required":
         declaration = declarations.get(check.field_name)
 
+        if check.field_name == "unit_sale_price":
+            from app.rules.validators.usp_validator import validate_unit_sale_price
+            usp_res = validate_unit_sale_price(declarations)
+            verdict = str(usp_res.get("status") or "").lower()
+            if verdict in ("pass", "not_applicable"):
+                return "pass", declaration
+            if verdict == "review":
+                return "review", declaration
+            return "fail", declaration
+
+        if check.field_name in ("unit_symbol", "legal_unit_symbol"):
+            from app.rules.validators.quantity_validator import validate_unit_symbol
+            unit_res = validate_unit_symbol(declarations)
+            verdict = str(unit_res.get("status") or "").lower()
+            decl = declarations.get("net_quantity") or declaration
+            if verdict in ("pass", "not_applicable"):
+                return "pass", decl
+            if verdict == "review":
+                return "review", decl
+            return "fail", decl
+
         if _value_present(declaration):
             if declaration.confidence is not None and declaration.confidence < 35.0:
                 return "review", declaration

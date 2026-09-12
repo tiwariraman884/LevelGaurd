@@ -1,10 +1,19 @@
 from datetime import datetime
 from enum import Enum
+from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum as SQLEnum, ForeignKey, String, func
+from sqlalchemy import DateTime, Enum as SQLEnum, Float, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
+
+if TYPE_CHECKING:
+    from app.models.declaration import Declaration
+    from app.models.escalation import Escalation
+    from app.models.inspection_image import InspectionImage
+    from app.models.mrp_finding import MRPFinding
+    from app.models.product import Product
+    from app.models.user import User
 
 
 class InspectionStatus(str, Enum):
@@ -57,6 +66,26 @@ class Inspection(Base):
         nullable=False,
     )
 
+    final_decision: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+        index=True,
+    )
+
+    final_decision_by: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    final_decision_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    officer_remarks: Mapped[str | None] = mapped_column(
+        nullable=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -68,8 +97,45 @@ class Inspection(Base):
         nullable=True,
     )
 
+    latitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    longitude: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    location_accuracy_m: Mapped[float | None] = mapped_column(
+        Float,
+        nullable=True,
+    )
+
+    location_captured_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    location_source: Mapped[str | None] = mapped_column(
+        String(30),
+        nullable=True,
+    )
+
+    scan_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+    scan_completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     inspector: Mapped["User"] = relationship(
-        back_populates="inspections"
+        "User",
+        back_populates="inspections",
+        foreign_keys=[inspector_id],
     )
 
     product: Mapped["Product | None"] = relationship(
@@ -88,5 +154,11 @@ class Inspection(Base):
 
     mrp_findings: Mapped[list["MRPFinding"]] = relationship(
         back_populates="inspection",
+        cascade="all, delete-orphan",
+    )
+
+    escalation: Mapped["Escalation | None"] = relationship(
+        back_populates="trigger_inspection",
+        uselist=False,
         cascade="all, delete-orphan",
     )

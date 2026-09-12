@@ -302,6 +302,71 @@ _RULES: list[dict] = [
             }
         ],
     },
+    # -----------------------------------------------------------------------
+    # LG-USP — Rule 6(1)(e)
+    # Unit Sale Price declaration (mandatory under 2021/2022 amendments).
+    # -----------------------------------------------------------------------
+    {
+        "rule_code": "LG-USP",
+        "rule_number": "6",
+        "version": 1,
+        "title": "Unit Sale Price Declaration",
+        "requirement": (
+            "Unit Sale Price (price per unit, e.g. per g, per kg, per ml, "
+            "per litre or per number) must be declared on packages "
+            "where net quantity is greater than 1g, 1ml or 1 piece, "
+            "inclusive of applicable taxes."
+        ),
+        "effective_from": date(2022, 1, 1),
+        "conditions": [],
+        "checks": [
+            {
+                "field_name": "unit_sale_price",
+                "operator": "required",
+                "expected_value": None,
+                "expected_unit": "INR",
+                "severity": "major",
+                "failure_message": (
+                    "Unit Sale Price (USP) declaration was not identified "
+                    "or does not meet statutory requirements."
+                ),
+            }
+        ],
+    },
+    # -----------------------------------------------------------------------
+    # LG-UNIT-SYMBOL — Rule 13 & Second Schedule / Sections 11 & 12
+    # Standard unit of weight, measure or number symbol validation.
+    # -----------------------------------------------------------------------
+    {
+        "rule_code": "LG-UNIT-SYMBOL",
+        "rule_number": "13",
+        "version": 1,
+        "title": "Legal Unit Symbol Validation",
+        "requirement": (
+            "The unit of weight, measure or number declared with Net Quantity "
+            "must strictly use standard legal unit symbols prescribed under "
+            "Rule 13 and Second Schedule of LM(PC) Rules, 2011 and Sections 11 & 12 "
+            "of the Legal Metrology Act, 2009 (e.g., 'g', 'kg', 'mg' for mass; "
+            "'ml', 'l', 'L' for volume; 'm', 'cm', 'mm' for length; 'N', 'U' for number). "
+            "Non-standard or colloquial symbols (such as 'gm', 'gms', 'kgs', 'ltr', 'mls') "
+            "are strictly prohibited."
+        ),
+        "effective_from": date(2011, 4, 1),
+        "conditions": [],
+        "checks": [
+            {
+                "field_name": "unit_symbol",
+                "operator": "required",
+                "expected_value": "standard",
+                "expected_unit": None,
+                "severity": "major",
+                "failure_message": (
+                    "Net quantity declaration does not use a standard legal unit symbol "
+                    "prescribed under Rule 13 / Second Schedule of LM(PC) Rules, 2011."
+                ),
+            }
+        ],
+    },
 ]
 
 _RULE_SOURCE: dict = {

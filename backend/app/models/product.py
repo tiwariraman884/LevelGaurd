@@ -71,3 +71,8 @@ class Product(Base):
         cascade="all, delete-orphan",
     )
 
+    escalations: Mapped[list["Escalation"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+    )
+

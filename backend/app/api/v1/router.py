@@ -2,12 +2,14 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     auth,
+    barcodes,
+    escalations,
     health,
     images,
     inspections,
-    products,
-    barcodes,
     manufacturer_references,
+    products,
+    reports,
 )
 
 
@@ -42,3 +44,12 @@ api_router.include_router(
 api_router.include_router(
     manufacturer_references.router,
 )
+
+api_router.include_router(
+    reports.router,
+)
+
+api_router.include_router(
+    escalations.router,
+)
+

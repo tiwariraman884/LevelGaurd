@@ -14,6 +14,9 @@ from .rule_condition import RuleCondition
 from .rule_check import RuleCheck
 from .rule_source import RuleSource
 from .violation import Violation
+from .escalation import Escalation
+from .audit_log import AuditLog
+from .notification import Notification
 
 __all__ = [
     "Role",
@@ -32,4 +35,7 @@ __all__ = [
     "RuleCheck",
     "RuleSource",
     "Violation",
+    "Escalation",
+    "AuditLog",
+    "Notification",
 ]

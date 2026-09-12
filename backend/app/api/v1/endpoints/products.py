@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.core.dependencies import get_current_user, require_roles
 from app.db.session import get_db
 from app.models.user import User
+from app.repositories.escalation_repository import get_escalations_for_product
+from app.schemas.escalation import EscalationResponse
 from app.schemas.product import (
     ProductCreate,
     ProductMRPReferenceCreate,
@@ -46,7 +48,7 @@ def create_new_product(
 @router.get(
     "",
     response_model=list[ProductResponse],
-    dependencies=[Depends(require_roles("admin", "inspector"))],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_products(
     current_user: User = Depends(get_current_user),
@@ -58,7 +60,7 @@ def get_products(
 @router.get(
     "/{product_id}",
     response_model=ProductResponse,
-    dependencies=[Depends(require_roles("admin", "inspector"))],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_single_product(
     product_id: int,
@@ -114,7 +116,7 @@ def create_product_mrp_reference(
 @router.get(
     "/{product_id}/mrp-references",
     response_model=list[ProductMRPReferenceResponse],
-    dependencies=[Depends(require_roles("admin", "inspector"))],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_product_mrp_references(
     product_id: int,
@@ -141,7 +143,7 @@ def get_product_mrp_references(
 @router.get(
     "/mrp-references/{reference_id}",
     response_model=ProductMRPReferenceResponse,
-    dependencies=[Depends(require_roles("admin", "inspector"))],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_single_mrp_reference(
     reference_id: int,
@@ -160,3 +162,30 @@ def get_single_mrp_reference(
         )
 
     return reference
+
+
+@router.get(
+    "/{product_id}/escalations",
+    response_model=list[EscalationResponse],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
+)
+def get_product_escalations(
+    product_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    product = get_product(
+        db=db,
+        product_id=product_id,
+    )
+
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
+
+    return get_escalations_for_product(
+        db=db,
+        product_id=product_id,
+    )

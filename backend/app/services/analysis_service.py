@@ -71,8 +71,136 @@ def _candidate_score(field: dict[str, Any]) -> float:
         and field.get("detection_evidence")
     ):
         score += 100.0
+        val_str = str(value or "")
+        if 6 <= len(val_str) <= 12:
+            score += 20.0
+
+    if field.get("field_name") == "unit_sale_price":
+        if isinstance(value, dict) and value.get("unit"):
+            score += 15.0
+        p = value.get("price") if isinstance(value, dict) else None
+        if p is not None and 0 < float(p) < 1000:
+            score += 20.0
 
     return score
+
+
+def _detect_field_conflicts(
+    field_name: str,
+    candidates: list[dict[str, Any]],
+) -> tuple[bool, str | None, list[dict[str, Any]]]:
+    """
+    Check if candidates from different images contain conflicting declarations.
+    Returns (has_conflict, reason, conflicting_candidates).
+    """
+    meaningful = [
+        c for c in candidates
+        if c.get("value") is not None
+        and str(c.get("value")).strip() != ""
+        and float(c.get("confidence") or 0.0) >= 40.0
+    ]
+
+    by_image: dict[int, list[dict[str, Any]]] = {}
+    for c in meaningful:
+        img_id = c.get("_image_id")
+        if img_id is not None:
+            by_image.setdefault(img_id, []).append(c)
+
+    if len(by_image) < 2:
+        return False, None, []
+
+    image_bests: list[dict[str, Any]] = [
+        max(cands, key=_candidate_score)
+        for cands in by_image.values()
+    ]
+
+    if field_name == "mrp":
+        prices = []
+        for c in image_bests:
+            try:
+                prices.append((float(c["value"]), c))
+            except (ValueError, TypeError):
+                pass
+        if len(prices) >= 2:
+            min_p = min(p[0] for p in prices)
+            max_p = max(p[0] for p in prices)
+            if max_p - min_p > 0.5:
+                distinct_str = ", ".join(
+                    f"Image {p[1].get('_image_id')}: Rs.{p[0]}"
+                    for p in prices
+                )
+                return (
+                    True,
+                    f"Conflicting MRP values detected across images ({distinct_str})",
+                    [p[1] for p in prices],
+                )
+
+    elif field_name == "net_quantity":
+        quantities = []
+        for c in image_bests:
+            val = c.get("value")
+            q_num = None
+            u_str = None
+            if isinstance(val, dict):
+                q_num = val.get("quantity")
+                u_str = val.get("unit")
+            elif isinstance(val, (int, float)):
+                q_num = float(val)
+            if q_num is not None:
+                quantities.append((float(q_num), str(u_str or "").lower(), c))
+        if len(quantities) >= 2:
+            q_vals = [q[0] for q in quantities]
+            u_vals = [q[1] for q in quantities if q[1]]
+            if max(q_vals) - min(q_vals) > 0.5 or (len(set(u_vals)) > 1 and len(u_vals) >= 2):
+                distinct_str = ", ".join(
+                    f"Image {q[2].get('_image_id')}: {q[0]}{q[1]}"
+                    for q in quantities
+                )
+                return (
+                    True,
+                    f"Conflicting Net Quantity values detected across images ({distinct_str})",
+                    [q[2] for q in quantities],
+                )
+
+    elif field_name in ("manufacturing_date", "expiry_date", "best_before", "packing_date"):
+        dates = [
+            (str(c.get("value") or "").strip(), c)
+            for c in image_bests
+            if str(c.get("value") or "").strip()
+        ]
+        if len(dates) >= 2:
+            d_strings = list(set(d[0] for d in dates))
+            if len(d_strings) > 1:
+                distinct_str = ", ".join(
+                    f"Image {d[1].get('_image_id')}: {d[0]}"
+                    for d in dates
+                )
+                return (
+                    True,
+                    f"Conflicting {field_name.replace('_', ' ').title()} values detected across images ({distinct_str})",
+                    [d[1] for d in dates],
+                )
+
+    elif field_name == "country_of_origin":
+        coos = [
+            (str(c.get("value") or "").strip().lower(), c)
+            for c in image_bests
+            if str(c.get("value") or "").strip()
+        ]
+        if len(coos) >= 2:
+            coo_vals = list(set(coo[0] for coo in coos))
+            if len(coo_vals) > 1:
+                distinct_str = ", ".join(
+                    f"Image {coo[1].get('_image_id')}: {coo[0].title()}"
+                    for coo in coos
+                )
+                return (
+                    True,
+                    f"Conflicting Country of Origin values detected across images ({distinct_str})",
+                    [coo[1] for coo in coos],
+                )
+
+    return False, None, []
 
 
 def _merge_field_candidates(
@@ -91,7 +219,29 @@ def _merge_field_candidates(
             key=_candidate_score,
         )
 
-        merged[field_name] = best
+        has_conflict, reason, conflicting_cands = _detect_field_conflicts(
+            field_name,
+            field_candidates,
+        )
+
+        if has_conflict:
+            best_copy = dict(best)
+            best_copy["status"] = "review"
+            best_copy["conflict"] = True
+            best_copy["conflict_reason"] = reason
+            best_copy["conflicting_candidates"] = [
+                {
+                    "image_id": c.get("_image_id"),
+                    "image_type": c.get("_image_type"),
+                    "value": c.get("value"),
+                    "raw_value": c.get("raw_value"),
+                    "confidence": c.get("confidence"),
+                }
+                for c in conflicting_cands
+            ]
+            merged[field_name] = best_copy
+        else:
+            merged[field_name] = best
 
     return merged
 
@@ -281,6 +431,8 @@ def analyze_inspection(
     db: Session,
     inspection_id: int,
 ) -> dict[str, Any]:
+    import time
+    start_time = time.time()
 
     statement = (
         select(InspectionImage)
@@ -316,6 +468,7 @@ def analyze_inspection(
     ] = {}
 
     image_results = []
+    failed_images = []
 
     for image in images:
 
@@ -324,129 +477,150 @@ def analyze_inspection(
         )
 
         if not original_path.exists():
-            raise FileNotFoundError(
-                f"Image file not found: {original_path}"
-            )
-
-        # -----------------------------------------------------
-        # 1. Detect best orientation
-        # -----------------------------------------------------
-        orientation = detect_best_orientation(
-            original_path
-        )
-
-        best_angle = int(
-            orientation["best_angle"]
-        )
-
-        orientation_score = float(
-            orientation["score"]
-        )
-
-        processed_path = _save_oriented_image(
-            image_path=original_path,
-            angle=best_angle,
-            inspection_id=inspection_id,
-            image_id=image.id,
-        )
-
-        image_results.append(
-            {
+            failed_images.append({
                 "image_id": image.id,
-                "image_type": image.image_type,
-                "original_path": str(original_path),
-                "processed_path": str(processed_path),
-                "best_orientation": best_angle,
-                "orientation_score": orientation_score,
-                "orientation_candidates": orientation[
-                    "candidates"
-                ],
-                "psm_runs": list(OCR_PSMS),
-            }
-        )
+                "file_name": image.file_name,
+                "error": f"Image file not found: {original_path}",
+                "status": "failed",
+            })
+            continue
 
-        # -----------------------------------------------------
-        # 2. Adaptive OCR on corrected image
-        # -----------------------------------------------------
-        image_psm_used = []
-
-        for psm in OCR_PSMS:
-
-            ocr_result = run_ocr(
-                image_path=processed_path,
-                psm=psm,
+        try:
+            # -----------------------------------------------------
+            # 1. Detect best orientation
+            # -----------------------------------------------------
+            orientation = detect_best_orientation(
+                original_path
             )
 
-            image_psm_used.append(psm)
-
-            # Image-aware detectors are expensive and independent of the
-            # full-image PSM. Run them only once on the primary PSM.
-            # Fallback PSMs contribute text-only evidence and are merged
-            # with the primary image-aware extraction.
-            extraction_result = extract_declarations(
-                ocr_result=ocr_result,
-                image_path=(
-                    processed_path
-                    if psm == OCR_PSMS[0]
-                    else None
-                ),
-                # processed_path is already rotated into the detected
-                # best orientation, so the MRP detector must treat it as
-                # orientation 0 rather than rotating it again.
-                orientation_hint=(
-                    0
-                    if psm == OCR_PSMS[0]
-                    else None
-                ),
+            best_angle = int(
+                orientation["best_angle"]
             )
 
-            fields = extraction_result.get(
-                "fields",
-                {},
+            orientation_score = float(
+                orientation["score"]
             )
 
-            for field_name, field in fields.items():
+            processed_path = _save_oriented_image(
+                image_path=original_path,
+                angle=best_angle,
+                inspection_id=inspection_id,
+                image_id=image.id,
+            )
 
-                if not isinstance(field, dict):
-                    continue
+            image_results.append(
+                {
+                    "image_id": image.id,
+                    "file_name": image.file_name,
+                    "image_type": image.image_type,
+                    "original_path": str(original_path),
+                    "processed_path": str(processed_path),
+                    "best_orientation": best_angle,
+                    "orientation_score": orientation_score,
+                    "orientation_candidates": orientation[
+                        "candidates"
+                    ],
+                    "psm_runs": list(OCR_PSMS),
+                    "status": "completed",
+                }
+            )
 
-                candidate = dict(field)
+            # -----------------------------------------------------
+            # 2. Adaptive OCR on corrected image
+            # -----------------------------------------------------
+            image_psm_used = []
 
-                candidate["_image_id"] = image.id
-                candidate["_image_type"] = image.image_type
-                candidate["_psm"] = psm
-                candidate["_orientation"] = best_angle
-                candidate["_processed_path"] = str(
-                    processed_path
+            for psm in OCR_PSMS:
+
+                ocr_result = run_ocr(
+                    image_path=processed_path,
+                    psm=psm,
                 )
 
-                candidates.setdefault(
-                    field_name,
-                    [],
-                ).append(candidate)
+                image_psm_used.append(psm)
 
-            current_quality = _extraction_quality(
-                fields
-            )
+                # Image-aware detectors are expensive and independent of the
+                # full-image PSM. Run them only once on the primary PSM.
+                # Fallback PSMs contribute text-only evidence and are merged
+                # with the primary image-aware extraction.
+                extraction_result = extract_declarations(
+                    ocr_result=ocr_result,
+                    image_path=(
+                        processed_path
+                        if psm == OCR_PSMS[0]
+                        else None
+                    ),
+                    # processed_path is already rotated into the detected
+                    # best orientation, so the MRP detector must treat it as
+                    # orientation 0 rather than rotating it again.
+                    orientation_hint=(
+                        0
+                        if psm == OCR_PSMS[0]
+                        else None
+                    ),
+                )
 
-            # PSM 6 is the normal primary pass. If it already
-            # provides a strong extraction, avoid repeating the
-            # entire declaration-extraction pipeline.
-            if (
-                psm == OCR_PSMS[0]
-                and not _needs_ocr_fallback(fields)
-            ):
-                break
+                fields = extraction_result.get(
+                    "fields",
+                    {},
+                )
 
-            # After PSM 11, stop if the extraction is now strong.
-            if (
-                psm == OCR_PSMS[1]
-                and current_quality >= 150.0
-                and not _needs_ocr_fallback(fields)
-            ):
-                break
+                for field_name, field in fields.items():
 
-        image_results[-1]["psm_runs"] = image_psm_used
+                    if not isinstance(field, dict):
+                        continue
+
+                    candidate = dict(field)
+                    candidate["field_name"] = field_name
+
+                    candidate["_image_id"] = image.id
+                    candidate["_image_type"] = image.image_type
+                    candidate["_psm"] = psm
+                    candidate["_orientation"] = best_angle
+                    candidate["_processed_path"] = str(
+                        processed_path
+                    )
+
+                    candidates.setdefault(
+                        field_name,
+                        [],
+                    ).append(candidate)
+
+                current_quality = _extraction_quality(
+                    fields
+                )
+
+                # PSM 6 is the normal primary pass. If it already
+                # provides a strong extraction, avoid repeating the
+                # entire declaration-extraction pipeline.
+                if (
+                    psm == OCR_PSMS[0]
+                    and not _needs_ocr_fallback(fields)
+                ):
+                    break
+
+                # After PSM 11, stop if the extraction is now strong.
+                if (
+                    psm == OCR_PSMS[1]
+                    and current_quality >= 150.0
+                    and not _needs_ocr_fallback(fields)
+                ):
+                    break
+
+            image_results[-1]["psm_runs"] = image_psm_used
+
+        except Exception as exc:
+            failed_images.append({
+                "image_id": image.id,
+                "file_name": image.file_name,
+                "error": str(exc),
+                "status": "failed",
+            })
+
+    if not image_results and failed_images:
+        raise RuntimeError(
+            f"All {len(images)} images failed during analysis: {failed_images[0]['error']}"
+        )
 
     # ---------------------------------------------------------
     # 3. Best candidate per logical field
@@ -518,9 +692,14 @@ def analyze_inspection(
 
     db.commit()
 
+    duration = round(time.time() - start_time, 2)
+
     return {
         "inspection_id": inspection_id,
-        "images_processed": len(images),
+        "total_images": len(images),
+        "images_processed": len(image_results),
+        "successfully_processed": len(image_results),
+        "failed_images": failed_images,
         "psms_used": list(OCR_PSMS),
         "candidate_count": sum(
             len(items)
@@ -531,12 +710,15 @@ def analyze_inspection(
         "legibility": legibility_field,
         "date_sensitive_commodity": date_sensitive_field,
         "imported": imported_field,
+        "processing_duration_seconds": duration,
         "fields": {
             field_name: {
                 "value": field.get("value"),
                 "raw_value": field.get("raw_value"),
                 "confidence": field.get("confidence"),
                 "status": field.get("status"),
+                "conflict": field.get("conflict", False),
+                "conflict_reason": field.get("conflict_reason"),
                 "image_id": field.get("_image_id"),
                 "image_type": field.get("_image_type"),
                 "psm": field.get("_psm"),

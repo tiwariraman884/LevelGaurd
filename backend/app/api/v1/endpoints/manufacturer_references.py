@@ -45,7 +45,7 @@ def create_manufacturer_reference(
 @router.get(
     "/product/{product_id}",
     response_model=ManufacturerReferenceResponse,
-    dependencies=[Depends(require_roles("admin", "inspector"))],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_product_manufacturer_reference(
     product_id: int,
@@ -69,7 +69,7 @@ def get_product_manufacturer_reference(
 @router.get(
     "/manufacturer/{manufacturer_name}",
     response_model=ManufacturerReferenceResponse,
-    dependencies=[Depends(require_roles("admin", "inspector"))],
+    dependencies=[Depends(require_roles("admin", "inspector", "auditor"))],
 )
 def get_manufacturer_reference_by_name(
     manufacturer_name: str,
